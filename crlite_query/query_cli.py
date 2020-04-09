@@ -1,6 +1,7 @@
 import argparse
 import logging
 import requests
+import sys
 
 from crlite_query import CRLiteDB, CRLiteQuery, IntermediatesDB
 from datetime import datetime, timedelta
@@ -75,30 +76,43 @@ def main():
 
             debug.setLogger(debug.Debug("all"))
 
-    last_updated_file = (args.db / ".last_updated").expanduser()
-    updated_file_timestamp = datetime.fromtimestamp(last_updated_file.stat().st_mtime)
-    grace_time = datetime.now() - timedelta(hours=6)
-    if last_updated_file.is_file() and updated_file_timestamp > grace_time:
-        log.info(f"Database was updated at {updated_file_timestamp}, skipping.")
-        log.debug(
-            f"Database was last updated {datetime.now() - updated_file_timestamp} ago."
+    db_dir = args.db.expanduser()
+
+    if not db_dir.is_dir():
+        db_dir.expanduser().mkdir()
+
+    last_updated_file = (db_dir / ".last_updated").expanduser()
+    if last_updated_file.exists():
+        updated_file_timestamp = datetime.fromtimestamp(
+            last_updated_file.stat().st_mtime
         )
-        args.no_update = True
+        grace_time = datetime.now() - timedelta(hours=6)
+        if last_updated_file.is_file() and updated_file_timestamp > grace_time:
+            log.info(f"Database was updated at {updated_file_timestamp}, skipping.")
+            log.debug(
+                f"Database was last updated {datetime.now() - updated_file_timestamp} ago."
+            )
+            args.no_update = True
 
     attachments_base_url = find_attachments_base_url(args.crlite_url)
 
-    intermediates_db = IntermediatesDB(db_path=args.db)
+    intermediates_db = IntermediatesDB(db_path=db_dir)
     crlite_db = CRLiteDB(db_path=args.db)
 
-    if args.force_update or not args.no_update:
-        intermediates_db.update(
-            collection_url=args.intermediates_url,
-            attachments_base_url=attachments_base_url,
-        )
-        crlite_db.update(
-            collection_url=args.crlite_url, attachments_base_url=attachments_base_url
-        )
-        last_updated_file.touch()
+    try:
+        if args.force_update or not args.no_update:
+            intermediates_db.update(
+                collection_url=args.intermediates_url,
+                attachments_base_url=attachments_base_url,
+            )
+            crlite_db.update(
+                collection_url=args.crlite_url,
+                attachments_base_url=attachments_base_url,
+            )
+            last_updated_file.touch()
+    except KeyboardInterrupt:
+        log.warning("Interrupted.")
+        sys.exit(1)
 
     if not args.no_delete:
         crlite_db.cleanup()

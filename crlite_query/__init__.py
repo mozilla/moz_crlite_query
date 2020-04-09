@@ -3,6 +3,7 @@ import collections
 import hashlib
 import logging
 import requests
+import progressbar
 import sqlite3
 
 from datetime import datetime
@@ -44,7 +45,7 @@ def ensure_local(*, base_url, entry, local_path):
 
 class IntermediatesDB(object):
     def __init__(self, *, db_path):
-        self.db_path = db_path.expanduser()
+        self.db_path = Path(db_path).expanduser()
         self.conn = sqlite3.connect(self.db_path / Path("intermediates.sqlite"))
         self.intermediates_path = self.db_path / "intermediates"
         self.intermediates_path.mkdir(exist_ok=True)
@@ -85,7 +86,7 @@ class IntermediatesDB(object):
 
         log.info(f"Intermediates Update: Syncing intermediate certificates.")
         count = 0
-        for entry in rsp.json()["data"]:
+        for entry in progressbar.progressbar(rsp.json()["data"]):
             local_path = self.intermediates_path / entry["id"]
             ensure_local(
                 base_url=attachments_base_url, entry=entry, local_path=local_path
@@ -207,7 +208,7 @@ class CRLiteDB(object):
         self.filter_file = self.download_to_db(
             base_url=attachments_base_url, entry=filter_entry
         )
-        for entry in stash_entries:
+        for entry in progressbar.progressbar(stash_entries):
             path = self.download_to_db(base_url=attachments_base_url, entry=entry)
             self.stash_files.append(path)
 

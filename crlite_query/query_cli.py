@@ -17,6 +17,8 @@ def find_attachments_base_url(urlstring):
 
 
 def main():
+    logging.basicConfig(level=logging.INFO)
+
     parser = argparse.ArgumentParser(
         description="Query CRLite data",
         epilog="""
@@ -110,5 +112,4 @@ def main():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
     main()

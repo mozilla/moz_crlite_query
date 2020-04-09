@@ -42,6 +42,16 @@ def ensure_local(*, base_url, entry, local_path):
 
     local_path.write_bytes(rsp.content)
 
+    h = hashlib.sha256()
+    h.update(local_path.read_bytes())
+    if h.hexdigest() != entry["attachment"]["hash"]:
+        log.warning(
+            f"While updating, {local_path.name} local sha256 digest is "
+            + f"{h.hexdigest()} but remote indicates it should be "
+            + f"{entry['attachment']['hash']}, raising exception."
+        )
+        raise ValueError(f"Hash mismatch on downloaded file {local_path}")
+
 
 class IntermediatesDB(object):
     def __init__(self, *, db_path):
@@ -58,11 +68,14 @@ class IntermediatesDB(object):
                 crlite_enrolled BOOLEAN, whitelist BOOLEAN)"""
         )
 
-    def __str__(self):
+    def __len__(self):
         with self.conn as c:
             cur = c.cursor()
             cur.execute("SELECT COUNT(*) FROM intermediates;")
-            return f"{cur.fetchone()[0]} Intermediates"
+            return cur.fetchone()[0]
+
+    def __str__(self):
+        return f"{len(self)} Intermediates"
 
     def update(self, *, collection_url, attachments_base_url):
         rsp = requests.get(collection_url)
@@ -99,16 +112,19 @@ class IntermediatesDB(object):
         with self.conn as c:
             cur = c.cursor()
             cur.execute(
-                "SELECT subject, pubKeyHash, crlite_enrolled FROM intermediates "
+                "SELECT id, subject, pubKeyHash, crlite_enrolled FROM intermediates "
                 + "WHERE subjectDN=:dn LIMIT 1;",
                 {"dn": base64.b64encode(bytes(distinguishedName)).decode("utf-8")},
             )
             row = cur.fetchone()
+            if not row:
+                return None
             return {
-                "subject": row[0],
-                "spki_hash_bytes": base64.b64decode(row[1]),
-                "crlite_enrolled": row[2] == 1,
-                "issuerId": IssuerId(base64.b64decode(row[1])),
+                "path": Path(self.intermediates_path) / Path(row[0]),
+                "subject": row[1],
+                "spki_hash_bytes": base64.b64decode(row[2]),
+                "crlite_enrolled": row[3] == 1,
+                "issuerId": IssuerId(base64.b64decode(row[2])),
             }
 
 
@@ -139,6 +155,8 @@ class CRLiteDB(object):
         )
 
     def filter_date(self):
+        if not self.filter_file:
+            return None
         time_str = self.filter_file.name.replace("Z-full", "")
         return datetime.fromisoformat(time_str)
 

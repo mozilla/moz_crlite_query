@@ -1,15 +1,9 @@
-from pip._internal.req import parse_requirements
 from setuptools import setup
-
-
-def load_requirements(fname):
-    reqs = parse_requirements(fname, session="test")
-    return [str(ir.req) for ir in reqs]
 
 
 setup(
     name="moz_crlite_query",
-    version="0.1",
+    version="0.1.1",
     description="Query CRLite for a certificate, or certificate information",
     long_description="Use this tool to download and maintain CRLite information from "
     + "Mozilla's Remote Settings infrastructure, and query it.",
@@ -23,8 +17,16 @@ setup(
     author="J.C. Jones",
     author_email="jc@mozilla.com",
     license="Mozilla Public License 2.0 (MPL 2.0)",
-    zip_safe=True,
-    install_requires=load_requirements("requirements.txt"),
+    zip_safe=False,
+    include_package_data=True,
+    install_requires=[
+        "filtercascade",
+        "glog",
+        "moz-crlite-lib",
+        "pyasn1-modules",
+        "requests",
+        "deprecated",
+    ],
     packages=["crlite_query"],
     entry_points={"console_scripts": ["moz_crlite_query=crlite_query.query_cli:main"],},
 )

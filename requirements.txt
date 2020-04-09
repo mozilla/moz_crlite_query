@@ -1,0 +1,6 @@
+filtercascade>=0.3.1
+glog>=0.3
+moz-crlite-lib>=0.2
+pyasn1-modules>=0.2.8
+requests[socks]>=2.10.0
+deprecated>=1.2

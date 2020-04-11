@@ -181,6 +181,8 @@ class CRLiteDB(object):
 
         self.filtercascade = FilterCascade.from_buf(self.filter_file.read_bytes())
 
+        self.issuer_to_revocations = collections.defaultdict(list)
+
         stashes = sorted(self.db_path.glob("*-diff"))
         self.stash_files = list(
             filter(lambda x: str(x.name) > filter_date_str, stashes)
@@ -229,6 +231,8 @@ class CRLiteDB(object):
         for entry in progressbar.progressbar(stash_entries):
             path = self.download_to_db(base_url=attachments_base_url, entry=entry)
             self.stash_files.append(path)
+
+        self.__load()
 
     def download_to_db(self, *, base_url, entry):
         local_path = self.db_path / entry["details"]["name"]

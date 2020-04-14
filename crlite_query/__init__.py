@@ -151,7 +151,7 @@ class CRLiteDB(object):
             f"Current filter: {self.filter_file.stem} with {self.filtercascade.layerCount()} "
             + f"layers and {self.filtercascade.bitCount()} bit-count, {len(self.stash_files)} "
             + f"stash files with {count_revocations} stashed revocations, up-to-date as of "
-            + f"{self.latest_covered_date()}."
+            + f"{self.latest_covered_date()} ({self.age()} ago)."
         )
 
     def filter_date(self):
@@ -170,6 +170,9 @@ class CRLiteDB(object):
         if self.stash_files:
             return self.latest_stash_date()
         return self.filter_date()
+
+    def age(self):
+        return self.latest_covered_date() - datetime.now()
 
     def __load(self):
         filters = sorted(self.db_path.glob("*-full"))

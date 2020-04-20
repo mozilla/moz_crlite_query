@@ -234,13 +234,17 @@ class CRLiteDB(object):
 
         log.info(f"CRLite Update: Syncing CRLite filters.")
 
-        filter_entry = filter_entries.pop()
-        self.filter_file = self.download_to_db(
-            base_url=attachments_base_url, entry=filter_entry
-        )
-        for entry in progressbar.progressbar(stash_entries):
-            path = self.download_to_db(base_url=attachments_base_url, entry=entry)
-            self.stash_files.append(path)
+        all_entries = stash_entries + [filter_entries.pop()]
+
+        for entry in progressbar.progressbar(all_entries):
+            local_path = self.db_path / entry["details"]["name"]
+            ensure_local(
+                base_url=attachments_base_url, local_path=local_path, entry=entry
+            )
+            if entry["incremental"]:
+                self.stash_files.append(local_path)
+            else:
+                self.filter_file = local_path
 
         self.__load()
 

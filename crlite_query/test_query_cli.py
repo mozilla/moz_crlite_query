@@ -147,7 +147,7 @@ class TestCRLiteDB(unittest.TestCase):
 class TestIntermediatesDB(unittest.TestCase):
     def test_load_empty_dir(self):
         with tempfile.TemporaryDirectory() as temp_dir:
-            db = IntermediatesDB(db_path=temp_dir)
+            db = IntermediatesDB(db_path=temp_dir, download_pems=True)
             self.assertTrue(db.intermediates_path.exists())
             self.assertEqual(list(db.intermediates_path.iterdir()), [])
 

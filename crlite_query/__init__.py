@@ -54,11 +54,13 @@ def ensure_local(*, base_url, entry, local_path):
 
 
 class IntermediatesDB(object):
-    def __init__(self, *, db_path):
+    def __init__(self, *, db_path, download_pems=False):
         self.db_path = Path(db_path).expanduser()
         self.conn = sqlite3.connect(self.db_path / Path("intermediates.sqlite"))
+        self.download_pems = download_pems
         self.intermediates_path = self.db_path / "intermediates"
-        self.intermediates_path.mkdir(exist_ok=True)
+        if self.download_pems:
+            self.intermediates_path.mkdir(exist_ok=True)
 
         self.conn.execute(
             """
@@ -97,16 +99,17 @@ class IntermediatesDB(object):
                 rsp.json()["data"],
             )
 
-        log.info(f"Intermediates Update: Syncing intermediate certificates.")
-        count = 0
-        for entry in progressbar.progressbar(rsp.json()["data"]):
-            local_path = self.intermediates_path / entry["id"]
-            ensure_local(
-                base_url=attachments_base_url, entry=entry, local_path=local_path
-            )
-            count += 1
+        if self.download_pems:
+            log.info(f"Intermediates Update: Syncing intermediate certificates.")
+            count = 0
+            for entry in progressbar.progressbar(rsp.json()["data"]):
+                local_path = self.intermediates_path / entry["id"]
+                ensure_local(
+                    base_url=attachments_base_url, entry=entry, local_path=local_path
+                )
+                count += 1
 
-        log.info(f"Intermediates Update: {count} intermediates up-to-date.")
+            log.info(f"Intermediates Update: {count} intermediates up-to-date.")
 
     def issuer_by_DN(self, distinguishedName):
         with self.conn as c:
@@ -119,13 +122,17 @@ class IntermediatesDB(object):
             row = cur.fetchone()
             if not row:
                 return None
-            return {
-                "path": Path(self.intermediates_path) / Path(row[0]),
+            data = {
                 "subject": row[1],
                 "spki_hash_bytes": base64.b64decode(row[2]),
                 "crlite_enrolled": row[3] == 1,
                 "issuerId": IssuerId(base64.b64decode(row[2])),
             }
+            pem_path = Path(self.intermediates_path) / Path(row[0])
+            if pem_path.is_file():
+                data["path"] = pem_path
+
+            return data
 
 
 class CRLiteDB(object):

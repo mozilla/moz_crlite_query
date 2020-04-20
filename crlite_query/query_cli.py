@@ -82,7 +82,7 @@ def main():
         db_dir.expanduser().mkdir()
 
     last_updated_file = (db_dir / ".last_updated").expanduser()
-    if last_updated_file.exists():
+    if last_updated_file.exists() and not args.force_update:
         updated_file_timestamp = datetime.fromtimestamp(
             last_updated_file.stat().st_mtime
         )

@@ -11,6 +11,20 @@ from urllib.parse import urlparse
 log = logging.getLogger("query_cli")
 
 
+crlite_collection_prod = (
+    "https://settings.prod.mozaws.net/v1/buckets/security-state"
+    + "/collections/cert-revocations/records"
+)
+crlite_collection_stage = (
+    "https://settings.stage.mozaws.net/v1/buckets/security-state"
+    + "/collections/cert-revocations/records"
+)
+intermediates_collection_prod = (
+    "https://settings.prod.mozaws.net/v1/buckets/security-state"
+    + "/collections/intermediates/records"
+)
+
+
 def find_attachments_base_url(urlstring):
     url = urlparse(urlstring)
     base_rsp = requests.get(f"{url.scheme}://{url.netloc}/v1/")
@@ -51,16 +65,18 @@ def main():
         help="Do not attempt to delete old database files",
         action="store_true",
     )
-    parser.add_argument(
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
         "--crlite-url",
-        default="https://settings.prod.mozaws.net/v1/buckets/security-state"
-        + "/collections/cert-revocations/records",
+        default=crlite_collection_prod,
         help="URL to the CRLite records at Remote Settings.",
+    )
+    group.add_argument(
+        "--crlite-staging", action="store_true", help="Use the staging URL for CRLite",
     )
     parser.add_argument(
         "--intermediates-url",
-        default="https://settings.prod.mozaws.net/v1/buckets/security-state"
-        + "/collections/intermediates/records",
+        default=intermediates_collection_prod,
         help="URL to the CRLite records at Remote Settings.",
     )
     parser.add_argument(
@@ -68,6 +84,9 @@ def main():
     )
 
     args = parser.parse_args()
+
+    if args.crlite_staging:
+        args.crlite_url = crlite_collection_stage
 
     if args.verbose > 0:
         log.setLevel("DEBUG")

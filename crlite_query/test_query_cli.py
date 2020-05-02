@@ -81,6 +81,7 @@ class MockCRLiteDataRequestHandler(MockCollectionRequestHandler):
                     "extra": {
                         "details": {"name": "2020-04-02T06:00:00Z-full"},
                         "incremental": False,
+                        "effectiveTimestamp": 1585807200000,
                     },
                 },
                 {
@@ -90,6 +91,8 @@ class MockCRLiteDataRequestHandler(MockCollectionRequestHandler):
                     "extra": {
                         "details": {"name": "2020-04-02T12:00:00Z-diff"},
                         "incremental": True,
+                        "effectiveTimestamp": 1585828800000,
+                        "parent": "80e8e148fbf95aed39783f1fcc2d4576074f8c487656ca2d53571da4b17e20a9",
                     },
                 },
             ]

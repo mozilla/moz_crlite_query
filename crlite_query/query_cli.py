@@ -32,8 +32,6 @@ def find_attachments_base_url(urlstring):
 
 
 def main():
-    logging.basicConfig(level=logging.INFO)
-
     parser = argparse.ArgumentParser(
         description="Query CRLite data",
         epilog="""
@@ -89,11 +87,13 @@ def main():
         args.crlite_url = crlite_collection_stage
 
     if args.verbose > 0:
-        log.setLevel("DEBUG")
+        logging.basicConfig(level=logging.DEBUG)
         if args.verbose > 1:
             from pyasn1 import debug
 
             debug.setLogger(debug.Debug("all"))
+    else:
+        logging.basicConfig(level=logging.INFO)
 
     db_dir = args.db.expanduser()
 

@@ -237,6 +237,7 @@ class CRLiteDB(object):
         all_entries = stash_entries + [filter_entries.pop()]
 
         for entry in progressbar.progressbar(all_entries):
+            log.debug(f"Downloading Kinto entry={entry})")
             local_path = self.db_path / entry["details"]["name"]
             ensure_local(
                 base_url=attachments_base_url, local_path=local_path, entry=entry

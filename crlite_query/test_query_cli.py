@@ -3,7 +3,7 @@ import socket
 import tempfile
 import unittest
 
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from crlite_query import CRLiteDB, IntermediatesDB
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -144,7 +144,10 @@ class TestCRLiteDB(unittest.TestCase):
 
             self.assertNotEqual(db.filter_file, None)
             self.assertEqual(len(db.stash_files), 1)
-            self.assertEqual(db.latest_covered_date(), datetime(2020, 4, 2, 12, 0))
+            self.assertEqual(
+                db.latest_covered_date(),
+                datetime(2020, 4, 2, 12, 0, tzinfo=timezone.utc),
+            )
 
 
 class TestIntermediatesDB(unittest.TestCase):

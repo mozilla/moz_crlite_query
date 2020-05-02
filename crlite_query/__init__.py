@@ -6,7 +6,7 @@ import requests
 import progressbar
 import sqlite3
 
-from datetime import datetime
+from datetime import datetime, timezone
 from filtercascade import FilterCascade
 from moz_crlite_lib import CertId, IssuerId, readFromAdditionsList
 from pathlib import Path
@@ -165,13 +165,13 @@ class CRLiteDB(object):
         if not self.filter_file:
             return None
         time_str = self.filter_file.name.replace("Z-full", "")
-        return datetime.fromisoformat(time_str)
+        return datetime.fromisoformat(time_str).replace(tzinfo=timezone.utc)
 
     def latest_stash_date(self):
         if not self.stash_files:
             return None
         time_str = self.stash_files[-1].name.replace("Z-diff", "")
-        return datetime.fromisoformat(time_str)
+        return datetime.fromisoformat(time_str).replace(tzinfo=timezone.utc)
 
     def latest_covered_date(self):
         if self.stash_files:
@@ -179,7 +179,7 @@ class CRLiteDB(object):
         return self.filter_date()
 
     def age(self):
-        return self.latest_covered_date() - datetime.now()
+        return datetime.now(timezone.utc) - self.latest_covered_date()
 
     def __load(self):
         filters = sorted(self.db_path.glob("*-full"))

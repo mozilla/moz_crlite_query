@@ -12,7 +12,7 @@ log = logging.getLogger("query_cli")
 
 
 crlite_collection_prod = (
-    "https://settings.prod.mozaws.net/v1/buckets/security-state"
+    "https://firefox.settings.services.mozilla.com/v1/buckets/security-state"
     + "/collections/cert-revocations/records"
 )
 crlite_collection_stage = (
@@ -20,7 +20,7 @@ crlite_collection_stage = (
     + "/collections/cert-revocations/records"
 )
 intermediates_collection_prod = (
-    "https://settings.prod.mozaws.net/v1/buckets/security-state"
+    "https://firefox.settings.services.mozilla.com/v1/buckets/security-state"
     + "/collections/intermediates/records"
 )
 

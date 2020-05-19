@@ -149,6 +149,23 @@ class TestCRLiteDB(unittest.TestCase):
                 datetime(2020, 4, 2, 12, 0, tzinfo=timezone.utc),
             )
 
+    def test_load_explicit_filter(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db = CRLiteDB(db_path=temp_dir)
+
+            self.assertEqual(db.filter_file, None)
+            self.assertEqual(db.stash_files, [])
+            self.assertEqual(db.latest_covered_date(), None)
+
+            db.load_filter(path=Path(__file__).resolve().parent / Path("test-1.filter"))
+            self.assertEqual(db.stash_files, [])
+
+            # Since the filter's name doesn't include the datestamp, expect
+            # a warning.
+            with self.assertLogs(level="WARNING") as log:
+                self.assertNotEqual(db.latest_covered_date(), None)
+                self.assertIn("Invalid isoformat string", log.output[0])
+
 
 class TestIntermediatesDB(unittest.TestCase):
     def test_load_empty_dir(self):

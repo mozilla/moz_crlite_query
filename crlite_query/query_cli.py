@@ -55,8 +55,14 @@ def main():
     parser.add_argument(
         "--no-update", help="Do not attempt to update the database", action="store_true"
     )
-    parser.add_argument(
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
         "--force-update", help="Force an update to the database", action="store_true"
+    )
+    group.add_argument(
+        "--use-filter",
+        help="Use this specific filter file, ignoring the database",
+        type=Path,
     )
     parser.add_argument(
         "--no-delete",
@@ -132,6 +138,9 @@ def main():
     except KeyboardInterrupt:
         log.warning("Interrupted.")
         sys.exit(1)
+
+    if args.use_filter:
+        crlite_db.load_filter(path=args.use_filter)
 
     if not args.no_delete:
         crlite_db.cleanup()

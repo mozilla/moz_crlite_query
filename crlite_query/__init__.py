@@ -165,13 +165,25 @@ class CRLiteDB(object):
         if not self.filter_file:
             return None
         time_str = self.filter_file.name.replace("Z-full", "")
-        return datetime.fromisoformat(time_str).replace(tzinfo=timezone.utc)
+        try:
+            return datetime.fromisoformat(time_str).replace(tzinfo=timezone.utc)
+        except ValueError as ve:
+            log.warning(
+                f"Couldn't decode filter path into timestamp, assuming it's right now: {ve}"
+            )
+            return datetime.now(tz=timezone.utc)
 
     def latest_stash_date(self):
         if not self.stash_files:
             return None
         time_str = self.stash_files[-1].name.replace("Z-diff", "")
-        return datetime.fromisoformat(time_str).replace(tzinfo=timezone.utc)
+        try:
+            return datetime.fromisoformat(time_str).replace(tzinfo=timezone.utc)
+        except ValueError as ve:
+            log.warning(
+                f"Couldn't decode stash path into timestamp, assuming it's right now: {ve}"
+            )
+            return datetime.now(tz=timezone.utc)
 
     def latest_covered_date(self):
         if self.stash_files:
@@ -179,23 +191,19 @@ class CRLiteDB(object):
         return self.filter_date()
 
     def age(self):
-        return datetime.now(timezone.utc) - self.latest_covered_date()
+        return datetime.now(tz=timezone.utc) - self.latest_covered_date()
 
-    def __load(self):
-        filters = sorted(self.db_path.glob("*-full"))
-        if not filters:
-            return
+    def load_filter(self, *, path):
+        self.filter_file = path
+        self.filtercascade = FilterCascade.from_buf(self.filter_file.read_bytes())
+        self.issuer_to_revocations = collections.defaultdict(list)
+        self.stash_files = list()
 
-        self.filter_file = filters.pop()
+    def load_stashes(self, *, stashes):
         filter_date_str = self.filter_file.stem
 
-        self.filtercascade = FilterCascade.from_buf(self.filter_file.read_bytes())
-
-        self.issuer_to_revocations = collections.defaultdict(list)
-
-        stashes = sorted(self.db_path.glob("*-diff"))
         self.stash_files = list(
-            filter(lambda x: str(x.name) > filter_date_str, stashes)
+            filter(lambda x: str(x.name) > filter_date_str, sorted(stashes))
         )
         for path in self.stash_files:
             with path.open("rb") as f:
@@ -203,6 +211,14 @@ class CRLiteDB(object):
                     self.issuer_to_revocations[entry["issuerId"]].extend(
                         entry["revocations"]
                     )
+
+    def __load(self):
+        filters = sorted(self.db_path.glob("*-full"))
+        if not filters:
+            return
+
+        self.load_filter(path=filters.pop())
+        self.load_stashes(stashes=self.db_path.glob("*-diff"))
 
     def cleanup(self):
         filters = sorted(self.db_path.glob("*-full"))
@@ -376,9 +392,13 @@ class CRLiteQuery(object):
                 "validity"
             )
             not_before = validity.getComponentByName("notBefore").getComponent()
-            not_before = datetime.strptime(str(not_before), "%y%m%d%H%M%SZ")
+            not_before = datetime.strptime(str(not_before), "%y%m%d%H%M%SZ").replace(
+                tzinfo=timezone.utc
+            )
             not_after = validity.getComponentByName("notAfter").getComponent()
-            not_after = datetime.strptime(str(not_after), "%y%m%d%H%M%SZ")
+            not_after = datetime.strptime(str(not_after), "%y%m%d%H%M%SZ").replace(
+                tzinfo=timezone.utc
+            )
 
             if issuer["crlite_enrolled"]:
                 result.update(self.crlite_db.revocation_status(certId))

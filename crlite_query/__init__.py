@@ -57,6 +57,7 @@ class IntermediatesDB(object):
     def __init__(self, *, db_path, download_pems=False):
         self.db_path = Path(db_path).expanduser()
         self.conn = sqlite3.connect(self.db_path / Path("intermediates.sqlite"))
+        self.conn.row_factory = sqlite3.Row
         self.download_pems = download_pems
         self.intermediates_path = self.db_path / "intermediates"
         if self.download_pems:
@@ -81,6 +82,9 @@ class IntermediatesDB(object):
 
     def update(self, *, collection_url, attachments_base_url):
         rsp = requests.get(collection_url)
+
+        all_remote_ids = {x["id"] for x in rsp.json()["data"]}
+
         with self.conn as c:
             c.executemany(
                 """INSERT INTO intermediates (id, last_modified,
@@ -111,6 +115,28 @@ class IntermediatesDB(object):
 
             log.info(f"Intermediates Update: {count} intermediates up-to-date.")
 
+        with self.conn as c:
+            cur = c.cursor()
+            all_local_ids = {
+                x["id"] for x in cur.execute("SELECT id FROM intermediates;").fetchall()
+            }
+
+            ids_to_remove = all_local_ids - all_remote_ids
+            if ids_to_remove:
+                log.info(
+                    f"A total of {len(ids_to_remove)} intermediates have been removed. "
+                    + "Syncing deletions."
+                )
+
+            for id_to_remove in ids_to_remove:
+                path = self.intermediates_path / id_to_remove
+                log.debug(f"Removing {path.name} (on disk={path.exists()})")
+                if path.exists():
+                    path.unlink()
+                c.execute(
+                    "DELETE FROM intermediates WHERE id=:id;", {"id": id_to_remove}
+                )
+
     def issuer_by_DN(self, distinguishedName):
         with self.conn as c:
             cur = c.cursor()
@@ -123,12 +149,12 @@ class IntermediatesDB(object):
             if not row:
                 return None
             data = {
-                "subject": row[1],
-                "spki_hash_bytes": base64.b64decode(row[2]),
-                "crlite_enrolled": row[3] == 1,
-                "issuerId": IssuerId(base64.b64decode(row[2])),
+                "subject": row["subject"],
+                "spki_hash_bytes": base64.b64decode(row["pubKeyHash"]),
+                "crlite_enrolled": row["crlite_enrolled"] == 1,
+                "issuerId": IssuerId(base64.b64decode(row["pubKeyHash"])),
             }
-            pem_path = Path(self.intermediates_path) / Path(row[0])
+            pem_path = Path(self.intermediates_path) / Path(row["id"])
             if pem_path.is_file():
                 data["path"] = pem_path
 

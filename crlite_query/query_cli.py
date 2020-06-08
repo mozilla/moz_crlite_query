@@ -44,7 +44,7 @@ def main():
     """,
     )
     parser.add_argument(
-        "files", help="PEM files to load", type=argparse.FileType("r"), nargs="+"
+        "files", help="PEM files to load", type=argparse.FileType("r"), nargs="*"
     )
     parser.add_argument(
         "--db",
@@ -82,6 +82,11 @@ def main():
         "--intermediates-url",
         default=intermediates_collection_prod,
         help="URL to the CRLite records at Remote Settings.",
+    )
+    group.add_argument(
+        "--download-intermediates",
+        action="store_true",
+        help="Download all intermediate PEM files to the database",
     )
     parser.add_argument(
         "--verbose", "-v", help="Be more verbose", action="count", default=0
@@ -121,11 +126,19 @@ def main():
 
     attachments_base_url = find_attachments_base_url(args.crlite_url)
 
-    intermediates_db = IntermediatesDB(db_path=db_dir)
+    intermediates_db = IntermediatesDB(
+        db_path=db_dir, download_pems=args.download_intermediates
+    )
     crlite_db = CRLiteDB(db_path=args.db)
 
     try:
         if args.force_update or not args.no_update:
+            if args.download_intermediates:
+                log.info(
+                    "Downloading all intermediate certificates. Look in "
+                    + f"{intermediates_db.intermediates_path}"
+                )
+
             intermediates_db.update(
                 collection_url=args.intermediates_url,
                 attachments_base_url=attachments_base_url,
@@ -148,6 +161,9 @@ def main():
     log.info(f"Status: {intermediates_db}, {crlite_db}")
 
     query = CRLiteQuery(intermediates_db=intermediates_db, crlite_db=crlite_db)
+
+    if not args.files:
+        log.info("No PEM files specified to load. Run with --help for usage.")
 
     for file in args.files:
         query.print_pem(file)

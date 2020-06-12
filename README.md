@@ -16,7 +16,7 @@ Currently, it expects PEM-formatted certificate data, and can process many at on
 for id in 77575263 1988442812 1485147627 2680822568; do
   curl --silent https://crt.sh/?d=${id} > /tmp/${id}.pem
 done
-moz_crlite_query /tmp/*.pem
+moz_crlite_query /tmp/*.pem --hosts getfirefox.com
 INFO:query_cli:Database was updated at 2020-04-08 16:06:39.400780, skipping.
 INFO:query_cli:Status: 2195 Intermediates, Current filter: 2020-04-02T06:00:00Z-full with 18 layers and 12922536 bit-count, 2 stash files with 3307 stashed revocations, up-to-date as of 2020-04-02 12:00:00.
 /tmp/1485147627.pem      Issuer: CN=Let's Encrypt Authority X3,O=Let's Encrypt,C=US
@@ -36,6 +36,10 @@ INFO:query_cli:Status: 2195 Intermediates, Current filter: 2020-04-02T06:00:00Z-
                        Enrolled in CRLite: ✅
                        CertID(e6426f344330d0a8eb080bbb7976391d976fc824b5dc16c0d15246d5148ff75c-0ac735b4a8163c96c73b4c7cb7437aa2)
                        Result: ⏰ Expired ⏰
+getfirefox.com:443      Issuer: CN=DigiCert SHA2 Secure Server CA,O=DigiCert Inc,C=US
+                        Enrolled in CRLite: ✅
+                        CertID(e6426f344330d0a8eb080bbb7976391d976fc824b5dc16c0d15246d5148ff75c-019d2b994ec99445c735d2a6d739e43a)
+                        Result: 👍 Valid 👍
 ```
 
 You can also pipe in PEM data:

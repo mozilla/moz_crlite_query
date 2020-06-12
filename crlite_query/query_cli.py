@@ -68,6 +68,11 @@ def main():
         "--force-update", help="Force an update to the database", action="store_true"
     )
     group.add_argument(
+        "--check-not-revoked",
+        help="Set exit code 0 if none of the supplied certificates are revoked",
+        action="store_true",
+    )
+    group.add_argument(
         "--use-filter",
         help="Use this specific filter file, ignoring the database",
         type=Path,
@@ -173,8 +178,10 @@ def main():
     if not args.files and not args.hosts:
         log.info("No PEM files or hosts specified to load. Run with --help for usage.")
 
+    to_test = list()
+
     for file in args.files:
-        query.print_query(name=file.name, iterator=query.pem(file))
+        to_test.append((file.name, query.gen_from_pem(file)))
 
     for host_str in args.hosts:
         parts = host_str.split(":")
@@ -182,9 +189,22 @@ def main():
         port = 443
         if len(parts) > 1:
             port = int(parts[1])
-        query.print_query(
-            name=f"{hostname}:{port}", iterator=query.host(hostname, port)
-        )
+        to_test.append((f"{hostname}:{port}", query.gen_from_host(hostname, port)))
+
+    failures = list()
+
+    for (name, generator) in to_test:
+        for result in query.query(name=name, generator=generator):
+            result.print_query_result()
+
+            if args.check_not_revoked and result.is_revoked():
+                failures.append(result)
+
+    if failures:
+        print(f"{len(failures)} failures logged:")
+        for result in failures:
+            print(result)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

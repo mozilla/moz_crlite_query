@@ -376,13 +376,83 @@ class RawCertificate(univ.Sequence):
     )
 
 
+class CRLiteQueryResult(object):
+    def __init__(self, *, name, issuer, cert_id, crlite_db, not_before, not_after):
+        self.name = name
+        self.issuer = issuer
+        self.cert_id = cert_id
+        self.via_stash = None
+        self.via_filter = None
+
+        if not issuer["crlite_enrolled"]:
+            self.state = "Not Enrolled"
+            return
+
+        rev_status = crlite_db.revocation_status(self.cert_id)
+
+        if rev_status["revoked"] is True:
+            if "via_stash" in rev_status:
+                self.via_stash = rev_status["via_stash"]
+            if "via_filter" in rev_status:
+                self.via_filter = rev_status["via_filter"]
+            self.state = "Revoked"
+            return
+
+        if crlite_db.latest_covered_date() < not_before:
+            self.state = "Too New"
+            return
+
+        if crlite_db.latest_covered_date() > not_after:
+            self.state = "Expired"
+            return
+
+        self.state = "Valid"
+
+    def __str__(self):
+        return f"{self.name} {self.cert_id} state={self.state}"
+
+    def is_revoked(self):
+        return self.state == "Revoked"
+
+    def result_icon(self):
+        if self.state == "Revoked":
+            return "⛔️"
+        if self.state == "Not Enrolled":
+            return "❌"
+        if self.state == "Valid":
+            return "👍"
+        if self.state == "Too New":
+            return "🐇"
+        if self.state == "Expired":
+            return "⏰"
+        return ""
+
+    def print_query_result(self):
+        padded_name = self.name + " " * 5
+        padding = "".ljust(len(padded_name))
+
+        enrolled_icon = "✅" if self.issuer["crlite_enrolled"] else "❌"
+
+        print(f"{padded_name} Issuer: {self.issuer['subject']}")
+        print(f"{padding} Enrolled in CRLite: {enrolled_icon}")
+        print(f"{padding} {self.cert_id}")
+        if self.via_filter:
+            print(f"{padding} Revoked via CRLite filter: {self.via_filter}")
+        if self.via_stash:
+            print(f"{padding} Revoked via Stash: {self.via_stash}")
+
+        print(
+            f"{padding} Result: {self.result_icon()} {self.state} {self.result_icon()}"
+        )
+
+
 class CRLiteQuery(object):
     def __init__(self, *, intermediates_db, crlite_db):
         self.intermediates_db = intermediates_db
         self.crlite_db = crlite_db
         self.context = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS, ca_certs=None)
 
-    def host(self, host, port):
+    def gen_from_host(self, host, port):
         try:
             with self.context.wrap_socket(
                 socket.socket(socket.AF_INET),
@@ -399,15 +469,15 @@ class CRLiteQuery(object):
             logging.warning(f"Failed to fetch from {host}:{port}: {e}")
         return
 
-    def pem(self, file_obj):
+    def gen_from_pem(self, file_obj):
         while True:
             data = pem.readPemFromFile(file_obj)
             if not data:
                 return
             yield data
 
-    def query(self, iterator):
-        for data in iterator:
+    def query(self, *, name, generator):
+        for data in generator:
             cert, rest = der_decoder(data, asn1Spec=RawCertificate())
             assert not rest, f"unexpected leftovers in ASN.1 decoding: {rest}"
 
@@ -427,16 +497,7 @@ class CRLiteQuery(object):
             )
             issuer = self.intermediates_db.issuer_by_DN(issuerDN)
 
-            issuerId = issuer["issuerId"]
-            certId = CertId(issuerId, serial_bytes)
-
-            result = {
-                "issuerId": issuerId,
-                "issuer_enrolled": issuer["crlite_enrolled"],
-                "issuer": issuer["subject"],
-                "certId": certId,
-                "state": "Unknown",
-            }
+            cert_id = CertId(issuer["issuerId"], serial_bytes)
 
             validity = cert.getComponentByName("tbsCertificate").getComponentByName(
                 "validity"
@@ -450,47 +511,11 @@ class CRLiteQuery(object):
                 tzinfo=timezone.utc
             )
 
-            if issuer["crlite_enrolled"]:
-                result.update(self.crlite_db.revocation_status(certId))
-
-            if not result["issuer_enrolled"]:
-                result["state"] = "Not Enrolled"
-            elif result["revoked"] is True:
-                result["state"] = "Revoked"
-            elif self.crlite_db.latest_covered_date() < not_before:
-                result["state"] = "Too New"
-            elif self.crlite_db.latest_covered_date() > not_after:
-                result["state"] = "Expired"
-            else:
-                result["state"] = "Valid"
-
-            yield result
-
-    def print_query(self, *, name, iterator):
-        padded_name = name + " " * 5
-        padding = "".ljust(len(padded_name))
-
-        for result in self.query(iterator):
-            enrolled_icon = "✅" if result["issuer_enrolled"] else "❌"
-
-            print(f"{padded_name} Issuer: {result['issuer']}")
-            print(f"{padding} Enrolled in CRLite: {enrolled_icon}")
-            print(f"{padding} {result['certId']}")
-            if "via_filter" in result:
-                print(f"{padding} Revoked via CRLite filter: {result['via_filter']}")
-            if "via_stash" in result:
-                print(f"{padding} Revoked via Stash: {result['via_stash']}")
-
-            result_icon = ""
-            if result["state"] == "Revoked":
-                result_icon = "⛔️"
-            elif result["state"] == "Not Enrolled":
-                result_icon = "❌"
-            elif result["state"] == "Valid":
-                result_icon = "👍"
-            elif result["state"] == "Too New":
-                result_icon = "🐇"
-            elif result["state"] == "Expired":
-                result_icon = "⏰"
-
-            print(f"{padding} Result: {result_icon} {result['state']} {result_icon}")
+            yield CRLiteQueryResult(
+                name=name,
+                issuer=issuer,
+                cert_id=cert_id,
+                crlite_db=self.crlite_db,
+                not_before=not_before,
+                not_after=not_after,
+            )

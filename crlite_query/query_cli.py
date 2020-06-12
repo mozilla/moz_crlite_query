@@ -176,7 +176,7 @@ def main():
     to_test = list()
 
     for file in args.files:
-        to_test.append((file.name, query.pem(file)))
+        to_test.append((file.name, query.gen_from_pem(file)))
 
     for host_str in args.hosts:
         parts = host_str.split(":")
@@ -184,10 +184,19 @@ def main():
         port = 443
         if len(parts) > 1:
             port = int(parts[1])
-        to_test.append((f"{hostname}:{port}", query.host(hostname, port)))
+        to_test.append((f"{hostname}:{port}", query.gen_from_host(hostname, port)))
 
-    for (name, iterator) in to_test:
-        query.print_query(name=name, iterator=iterator)
+    failures = list()
+
+    for (name, generator) in to_test:
+        for result in query.query(name=name, generator=generator):
+            result.print_query_result()
+
+    if failures:
+        print(f"{len(failures)} failures logged:")
+        for result in failures:
+            print(result)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

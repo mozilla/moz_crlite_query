@@ -44,6 +44,14 @@ def main():
     """,
     )
     parser.add_argument(
+        "--hosts",
+        help="Hosts to check, in the form host[:port] where "
+        + "port is assumed 443 if not provided",
+        nargs="+",
+        default=[],
+        metavar="host[:port]",
+    )
+    parser.add_argument(
         "files", help="PEM files to load", type=argparse.FileType("r"), nargs="*"
     )
     parser.add_argument(
@@ -162,11 +170,21 @@ def main():
 
     query = CRLiteQuery(intermediates_db=intermediates_db, crlite_db=crlite_db)
 
-    if not args.files:
-        log.info("No PEM files specified to load. Run with --help for usage.")
+    if not args.files and not args.hosts:
+        log.info("No PEM files or hosts specified to load. Run with --help for usage.")
 
     for file in args.files:
-        query.print_pem(file)
+        query.print_query(name=file.name, iterator=query.pem(file))
+
+    for host_str in args.hosts:
+        parts = host_str.split(":")
+        hostname = parts[0]
+        port = 443
+        if len(parts) > 1:
+            port = int(parts[1])
+        query.print_query(
+            name=f"{hostname}:{port}", iterator=query.host(hostname, port)
+        )
 
 
 if __name__ == "__main__":

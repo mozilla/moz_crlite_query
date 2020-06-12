@@ -2,9 +2,10 @@ import base64
 import collections
 import hashlib
 import logging
-import requests
 import progressbar
+import requests
 import sqlite3
+import ssl
 
 from datetime import datetime, timezone
 from filtercascade import FilterCascade
@@ -379,11 +380,30 @@ class CRLiteQuery(object):
         self.intermediates_db = intermediates_db
         self.crlite_db = crlite_db
 
+    def host(self, host, port):
+        try:
+            yield ssl.PEM_cert_to_DER_cert(
+                ssl.get_server_certificate(
+                    (host, port), ssl_version=ssl.PROTOCOL_TLS, ca_certs=None
+                )
+            )
+        except ssl.SSLError as se:
+            logging.warning(f"Failed to fetch from {host}:{port}: {se}")
+        except TimeoutError:
+            logging.warning(f"Failed to fetch from {host}:{port}: timed out")
+        except Exception:
+            logging.warning(f"Failed to fetch from {host}:{port}")
+        return
+
     def pem(self, file_obj):
         while True:
             data = pem.readPemFromFile(file_obj)
             if not data:
                 return
+            yield data
+
+    def query(self, iterator):
+        for data in iterator:
             cert, rest = der_decoder(data, asn1Spec=RawCertificate())
             assert not rest, f"unexpected leftovers in ASN.1 decoding: {rest}"
 
@@ -442,11 +462,11 @@ class CRLiteQuery(object):
 
             yield result
 
-    def print_pem(self, file_obj):
-        padded_name = file_obj.name + " " * 5
+    def print_query(self, *, name, iterator):
+        padded_name = name + " " * 5
         padding = "".ljust(len(padded_name))
 
-        for result in self.pem(file_obj):
+        for result in self.query(iterator):
             enrolled_icon = "✅" if result["issuer_enrolled"] else "❌"
 
             print(f"{padded_name} Issuer: {result['issuer']}")

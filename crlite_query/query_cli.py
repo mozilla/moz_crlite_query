@@ -68,6 +68,11 @@ def main():
         "--force-update", help="Force an update to the database", action="store_true"
     )
     group.add_argument(
+        "--check-not-revoked",
+        help="Set exit code 0 if none of the supplied certificates are revoked",
+        action="store_true",
+    )
+    group.add_argument(
         "--use-filter",
         help="Use this specific filter file, ignoring the database",
         type=Path,
@@ -191,6 +196,9 @@ def main():
     for (name, generator) in to_test:
         for result in query.query(name=name, generator=generator):
             result.print_query_result()
+
+            if args.check_not_revoked and result.is_revoked():
+                failures.append(result)
 
     if failures:
         print(f"{len(failures)} failures logged:")

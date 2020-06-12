@@ -4,6 +4,7 @@ import hashlib
 import logging
 import progressbar
 import requests
+import socket
 import sqlite3
 import ssl
 
@@ -379,20 +380,23 @@ class CRLiteQuery(object):
     def __init__(self, *, intermediates_db, crlite_db):
         self.intermediates_db = intermediates_db
         self.crlite_db = crlite_db
+        self.context = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS, ca_certs=None)
 
     def host(self, host, port):
         try:
-            yield ssl.PEM_cert_to_DER_cert(
-                ssl.get_server_certificate(
-                    (host, port), ssl_version=ssl.PROTOCOL_TLS, ca_certs=None
-                )
-            )
+            with self.context.wrap_socket(
+                socket.socket(socket.AF_INET),
+                server_hostname=host,
+                do_handshake_on_connect=True,
+            ) as conn:
+                conn.connect((host, port))
+                yield conn.getpeercert(binary_form=True)
         except ssl.SSLError as se:
             logging.warning(f"Failed to fetch from {host}:{port}: {se}")
         except TimeoutError:
             logging.warning(f"Failed to fetch from {host}:{port}: timed out")
-        except Exception:
-            logging.warning(f"Failed to fetch from {host}:{port}")
+        except Exception as e:
+            logging.warning(f"Failed to fetch from {host}:{port}: {e}")
         return
 
     def pem(self, file_obj):

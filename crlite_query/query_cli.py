@@ -173,8 +173,10 @@ def main():
     if not args.files and not args.hosts:
         log.info("No PEM files or hosts specified to load. Run with --help for usage.")
 
+    to_test = list()
+
     for file in args.files:
-        query.print_query(name=file.name, iterator=query.pem(file))
+        to_test.append((file.name, query.pem(file)))
 
     for host_str in args.hosts:
         parts = host_str.split(":")
@@ -182,9 +184,10 @@ def main():
         port = 443
         if len(parts) > 1:
             port = int(parts[1])
-        query.print_query(
-            name=f"{hostname}:{port}", iterator=query.host(hostname, port)
-        )
+        to_test.append((f"{hostname}:{port}", query.host(hostname, port)))
+
+    for (name, iterator) in to_test:
+        query.print_query(name=name, iterator=iterator)
 
 
 if __name__ == "__main__":

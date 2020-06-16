@@ -7,6 +7,7 @@ import requests
 import socket
 import sqlite3
 import ssl
+import sys
 
 from datetime import datetime, timezone
 from filtercascade import FilterCascade
@@ -21,6 +22,9 @@ from pyasn1_modules import rfc2459
 from urllib.parse import urljoin
 
 log = logging.getLogger("crlite_query")
+
+assert sqlite3.sqlite_version_info >= (3, 24), "Requires SQLite 3.24 or newer"
+assert sys.version_info >= (3, 7), "Requires Python 3.7 or newer"
 
 
 def ensure_local(*, base_url, entry, local_path):
@@ -58,7 +62,7 @@ def ensure_local(*, base_url, entry, local_path):
 class IntermediatesDB(object):
     def __init__(self, *, db_path, download_pems=False):
         self.db_path = Path(db_path).expanduser()
-        self.conn = sqlite3.connect(self.db_path / Path("intermediates.sqlite"))
+        self.conn = sqlite3.connect(str(self.db_path / Path("intermediates.sqlite")))
         self.conn.row_factory = sqlite3.Row
         self.download_pems = download_pems
         self.intermediates_path = self.db_path / "intermediates"

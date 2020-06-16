@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name="moz_crlite_query",
-    version="0.2.0",
+    version="0.2.1",
     description="Query CRLite for a certificate, or certificate information",
     long_description="Use this tool to download and maintain CRLite information from "
     + "Mozilla's Remote Settings infrastructure, and query it.",
@@ -19,6 +19,7 @@ setup(
     license="Mozilla Public License 2.0 (MPL 2.0)",
     zip_safe=False,
     include_package_data=True,
+    python_requires=">=3.7",
     install_requires=[
         "deprecated",
         "filtercascade",

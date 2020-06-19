@@ -68,14 +68,14 @@ def main():
         "--force-update", help="Force an update to the database", action="store_true"
     )
     group.add_argument(
-        "--check-not-revoked",
-        help="Set exit code 0 if none of the supplied certificates are revoked",
-        action="store_true",
-    )
-    group.add_argument(
         "--use-filter",
         help="Use this specific filter file, ignoring the database",
         type=Path,
+    )
+    parser.add_argument(
+        "--check-not-revoked",
+        help="Set exit code 0 if none of the supplied certificates are revoked",
+        action="store_true",
     )
     parser.add_argument(
         "--no-delete",

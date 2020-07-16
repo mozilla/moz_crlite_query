@@ -46,10 +46,20 @@ def main():
     parser.add_argument(
         "--hosts",
         help="Hosts to check, in the form host[:port] where "
-        + "port is assumed 443 if not provided",
+        + "port is assumed 443 if not provided. Can be specified multiple times.",
+        action="append",
         nargs="+",
         default=[],
         metavar="host[:port]",
+    )
+    parser.add_argument(
+        "--hosts-file",
+        help="File of hosts to check, in the form of 'host[:port]' each line, "
+        + "where port is assumed 443 if not provided. Can be specified multiple "
+        + " times.",
+        action="append",
+        default=[],
+        type=Path,
     )
     parser.add_argument(
         "files", help="PEM files to load", type=argparse.FileType("r"), nargs="*"
@@ -175,7 +185,7 @@ def main():
 
     query = CRLiteQuery(intermediates_db=intermediates_db, crlite_db=crlite_db)
 
-    if not args.files and not args.hosts:
+    if not args.files and not args.hosts and not args.hosts_file:
         log.info("No PEM files or hosts specified to load. Run with --help for usage.")
 
     to_test = list()
@@ -183,7 +193,16 @@ def main():
     for file in args.files:
         to_test.append((file.name, query.gen_from_pem(file)))
 
-    for host_str in args.hosts:
+    host_strings = []
+    for host_list in args.hosts:
+        host_strings.extend(host_list)
+
+    for path in args.hosts_file:
+        with path.open("r") as fd:
+            for line in fd:
+                host_strings.append(line.strip())
+
+    for host_str in host_strings:
         parts = host_str.split(":")
         hostname = parts[0]
         port = 443

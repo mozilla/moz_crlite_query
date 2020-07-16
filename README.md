@@ -59,3 +59,38 @@ INFO:query_cli:Status: 2195 Intermediates, Current filter: 2020-04-02T06:00:00Z-
              CertID(e6426f344330d0a8eb080bbb7976391d976fc824b5dc16c0d15246d5148ff75c-0f7d9e589e0dd146f55bc6530139d3a6)
              Result: 👍 Valid 👍
 ```
+
+You can feed in files containing individual lines of the form `host:port`:
+
+```sh
+moz_crlite_query --hosts mozilla.com firefox.com --hosts getfirefox.net --hosts-file /tmp/top4.txt
+INFO:query_cli:Database was updated at 2020-07-16 16:10:41.545092, skipping.
+INFO:query_cli:Status: 2084 Intermediates, Current filter: 2020-06-18T18:00:18+00:00Z-full with 27 layers and 41536664 bit-count, 0 stash files with 0 stashed revocations, up-to-date as of 2020-06-18 18:00:18+00:00 (28 days, 5:34:39.044502 ago).
+mozilla.com:443      Issuer: CN=DigiCert SHA2 Secure Server CA,O=DigiCert Inc,C=US
+                     Enrolled in CRLite: ✅
+                     CertID(e6426f344330d0a8eb080bbb7976391d976fc824b5dc16c0d15246d5148ff75c-019d2b994ec99445c735d2a6d739e43a)
+                     Result: 👍 Valid 👍
+firefox.com:443      Issuer: CN=DigiCert SHA2 Secure Server CA,O=DigiCert Inc,C=US
+                     Enrolled in CRLite: ✅
+                     CertID(e6426f344330d0a8eb080bbb7976391d976fc824b5dc16c0d15246d5148ff75c-019d2b994ec99445c735d2a6d739e43a)
+                     Result: 👍 Valid 👍
+getfirefox.net:443      Issuer: CN=DigiCert SHA2 Secure Server CA,O=DigiCert Inc,C=US
+                        Enrolled in CRLite: ✅
+                        CertID(e6426f344330d0a8eb080bbb7976391d976fc824b5dc16c0d15246d5148ff75c-019d2b994ec99445c735d2a6d739e43a)
+                        Result: 👍 Valid 👍
+apple.com:443      Issuer: CN=DigiCert SHA2 Extended Validation Server CA-3,OU=www.digicert.com,O=DigiCert\, Inc.,C=US
+                   Enrolled in CRLite: ✅
+                   CertID(9704cf37ad50839fb5a8053e32293db056835f984ba360073fcd1847e22037a3-0e7b3ab429e183d07a4fc4dbe9c4c191)
+                   Result: 🐇 Too New 🐇
+youtube.com:443      Issuer: CN=GTS CA 1O1,O=Google Trust Services,C=US
+                     Enrolled in CRLite: ✅
+                     CertID(6193e04d9fb0a0d0820885b72c7d82c5078bcc1ff59b8d907024c149d81aca3b-7e10d901f7ac03cd080000000047ef8e)
+                     Result: 👍 Valid 👍
+www.google.com:443      Issuer: CN=GTS CA 1O1,O=Google Trust Services,C=US
+                        Enrolled in CRLite: ✅
+                        CertID(6193e04d9fb0a0d0820885b72c7d82c5078bcc1ff59b8d907024c149d81aca3b-25eb382df564aeb608000000004aaba0)
+                        Result: 🐇 Too New 🐇
+www.blogger.com:443      Issuer: CN=GTS CA 1O1,O=Google Trust Services,C=US
+                         Enrolled in CRLite: ✅
+                         CertID(6193e04d9fb0a0d0820885b72c7d82c5078bcc1ff59b8d907024c149d81aca3b-be84ce8731c637490200000000715c1a)
+```

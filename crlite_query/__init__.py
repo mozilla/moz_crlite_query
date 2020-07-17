@@ -422,7 +422,7 @@ class CRLiteQueryResult(object):
         if self.state == "Revoked":
             return "⛔️"
         if self.state == "Not Enrolled":
-            return "❌"
+            return "❔"
         if self.state == "Valid":
             return "👍"
         if self.state == "Too New":

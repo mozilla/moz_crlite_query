@@ -1,7 +1,9 @@
 import json
+import io
 import socket
 import tempfile
 import unittest
+import crlite_query
 
 from datetime import datetime, timezone
 from pathlib import Path
@@ -192,6 +194,62 @@ class TestIntermediatesDB(unittest.TestCase):
             self.assertNotEqual(issuer, None)
             self.assertEqual(issuer["crlite_enrolled"], True)
             self.assertTrue(issuer["path"].exists())
+
+
+class TestHostFileParsing(unittest.TestCase):
+    def test_empty_file(self):
+        results = crlite_query.parse_hosts_file(io.StringIO(""))
+        self.assertFalse(results)
+
+    def test_only_comments(self):
+        results = crlite_query.parse_hosts_file(
+            io.StringIO(
+                """
+            # this is a comment
+            ; and so is this
+
+            # and that was a blank line
+        """
+            )
+        )
+        self.assertFalse(results)
+
+    def test_one_host_and_comments(self):
+        results = crlite_query.parse_hosts_file(
+            io.StringIO(
+                """
+            # this is a comment
+            ; and so is this
+            example.com:999
+            # and that was a blank line
+        """
+            )
+        )
+        self.assertEqual(results, ["example.com:999"])
+
+    def test_two_hosts_and_comments(self):
+        results = crlite_query.parse_hosts_file(
+            io.StringIO(
+                """
+            example.net
+            \t# this is a comment
+            ; \tand so is this
+            example.com:999
+            # okay we should be done now
+        """
+            )
+        )
+        self.assertEqual(results, ["example.net", "example.com:999"])
+
+    def test_one_host(self):
+        results = crlite_query.parse_hosts_file(
+            io.StringIO(
+                """
+            example.com:112
+        """
+            )
+        )
+        self.assertEqual(results, ["example.com:112"])
 
 
 if __name__ == "__main__":

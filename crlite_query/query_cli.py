@@ -3,7 +3,7 @@ import logging
 import requests
 import sys
 
-from crlite_query import CRLiteDB, CRLiteQuery, IntermediatesDB
+from crlite_query import CRLiteDB, CRLiteQuery, IntermediatesDB, parse_hosts_file
 from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlparse
@@ -199,8 +199,7 @@ def main():
 
     for path in args.hosts_file:
         with path.open("r") as fd:
-            for line in fd:
-                host_strings.append(line.strip())
+            host_strings.extend(parse_hosts_file(fd))
 
     for host_str in host_strings:
         parts = host_str.split(":")

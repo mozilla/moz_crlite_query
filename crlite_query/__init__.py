@@ -3,6 +3,7 @@ import collections
 import hashlib
 import logging
 import progressbar
+import re
 import requests
 import socket
 import sqlite3
@@ -57,6 +58,18 @@ def ensure_local(*, base_url, entry, local_path):
             + f"{entry['attachment']['hash']}, raising exception."
         )
         raise ValueError(f"Hash mismatch on downloaded file {local_path}")
+
+
+comment_re = re.compile(r"^\s*[#;]")
+
+
+def parse_hosts_file(fd):
+    host_strings = []
+    for l in fd:
+        line = l.strip()
+        if line and not comment_re.match(line):
+            host_strings.append(line)
+    return host_strings
 
 
 class IntermediatesDB(object):

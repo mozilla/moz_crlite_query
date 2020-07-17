@@ -63,6 +63,14 @@ INFO:query_cli:Status: 2195 Intermediates, Current filter: 2020-04-02T06:00:00Z-
 You can feed in files containing individual lines of the form `host:port`:
 
 ```sh
+cat >/tmp/top4.txt <<EOF
+apple.com
+youtube.com
+www.google.com:443
+# This is definitely half of my top 8 spaces
+www.blogger.com
+EOF
+
 moz_crlite_query --hosts mozilla.com firefox.com --hosts getfirefox.net --hosts-file /tmp/top4.txt
 INFO:query_cli:Database was updated at 2020-07-16 16:10:41.545092, skipping.
 INFO:query_cli:Status: 2084 Intermediates, Current filter: 2020-06-18T18:00:18+00:00Z-full with 27 layers and 41536664 bit-count, 0 stash files with 0 stashed revocations, up-to-date as of 2020-06-18 18:00:18+00:00 (28 days, 5:34:39.044502 ago).

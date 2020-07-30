@@ -401,6 +401,10 @@ class CRLiteQueryResult(object):
         self.via_stash = None
         self.via_filter = None
 
+        if not issuer:
+            self.state = "Unknown Issuer"
+            return
+
         if not issuer["crlite_enrolled"]:
             self.state = "Not Enrolled"
             return
@@ -442,21 +446,26 @@ class CRLiteQueryResult(object):
             return "🐇"
         if self.state == "Expired":
             return "⏰"
+        if self.state == "Unknown Issuer":
+            return "⁉️"
         return ""
 
     def print_query_result(self):
         padded_name = self.name + " " * 5
         padding = "".ljust(len(padded_name))
 
-        enrolled_icon = "✅" if self.issuer["crlite_enrolled"] else "❌"
+        if not self.issuer:
+            self.state = "Unknown Issuer"
+        else:
+            enrolled_icon = "✅" if self.issuer["crlite_enrolled"] else "❌"
 
-        print(f"{padded_name} Issuer: {self.issuer['subject']}")
-        print(f"{padding} Enrolled in CRLite: {enrolled_icon}")
-        print(f"{padding} {self.cert_id}")
-        if self.via_filter:
-            print(f"{padding} Revoked via CRLite filter: {self.via_filter}")
-        if self.via_stash:
-            print(f"{padding} Revoked via Stash: {self.via_stash}")
+            print(f"{padded_name} Issuer: {self.issuer['subject']}")
+            print(f"{padding} Enrolled in CRLite: {enrolled_icon}")
+            print(f"{padding} {self.cert_id}")
+            if self.via_filter:
+                print(f"{padding} Revoked via CRLite filter: {self.via_filter}")
+            if self.via_stash:
+                print(f"{padding} Revoked via Stash: {self.via_stash}")
 
         print(
             f"{padding} Result: {self.result_icon()} {self.state} {self.result_icon()}"
@@ -513,6 +522,16 @@ class CRLiteQuery(object):
                 "issuer"
             )
             issuer = self.intermediates_db.issuer_by_DN(issuerDN)
+            if not issuer:
+                yield CRLiteQueryResult(
+                    name=name,
+                    issuer=None,
+                    cert_id=None,
+                    crlite_db=self.crlite_db,
+                    not_before=None,
+                    not_after=None,
+                )
+                continue
 
             cert_id = CertId(issuer["issuerId"], serial_bytes)
 

@@ -471,6 +471,27 @@ class CRLiteQueryResult(object):
             f"{padding} Result: {self.result_icon()} {self.state} {self.result_icon()}"
         )
 
+    def log_query_result(self):
+        if not self.issuer:
+            log.warning(f"{self.name} Unknown issuer")
+            return
+
+        logdata = {
+            "name": self.name,
+            "issuer": self.issuer["subject"],
+            "state": self.state,
+            "state_icon": self.result_icon(),
+            "enrolled_in_crlite": "✅" if self.issuer["crlite_enrolled"] else "❌",
+            "cert_id": self.cert_id,
+            "via_filter": self.via_filter,
+            "via_stash": self.via_stash,
+        }
+
+        if self.state == "Revoked":
+            log.warning(logdata)
+        else:
+            log.info(logdata)
+
 
 class CRLiteQuery(object):
     def __init__(self, *, intermediates_db, crlite_db):

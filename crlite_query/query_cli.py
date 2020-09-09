@@ -114,6 +114,11 @@ def main():
     parser.add_argument(
         "--verbose", "-v", help="Be more verbose", action="count", default=0
     )
+    group.add_argument(
+        "--structured",
+        help="Emit log entries intended for structured loggers",
+        action="store_true",
+    )
 
     args = parser.parse_args()
 
@@ -213,7 +218,10 @@ def main():
 
     for (name, generator) in to_test:
         for result in query.query(name=name, generator=generator):
-            result.print_query_result()
+            if args.structured:
+                result.log_query_result()
+            else:
+                result.print_query_result()
 
             if args.check_not_revoked and result.is_revoked():
                 failures.append(result)

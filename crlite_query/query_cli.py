@@ -116,7 +116,7 @@ def main():
     parser.add_argument(
         "--verbose", "-v", help="Be more verbose", action="count", default=0
     )
-    group.add_argument(
+    parser.add_argument(
         "--structured",
         help="Emit log entries intended for structured loggers",
         action="store_true",

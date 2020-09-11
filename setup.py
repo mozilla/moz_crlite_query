@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name="moz_crlite_query",
-    version="0.3.3",
+    version="0.3.4",
     description="Query CRLite for a certificate, or certificate information",
     long_description="Use this tool to download and maintain CRLite information from "
     + "Mozilla's Remote Settings infrastructure, and query it.",
@@ -30,5 +30,7 @@ setup(
         "requests",
     ],
     packages=["crlite_query"],
-    entry_points={"console_scripts": ["moz_crlite_query=crlite_query.query_cli:main"],},
+    entry_points={
+        "console_scripts": ["moz_crlite_query=crlite_query.query_cli:main"],
+    },
 )

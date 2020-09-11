@@ -83,6 +83,11 @@ def main():
         type=Path,
     )
     parser.add_argument(
+        "--check-freshness",
+        help="Set exit code 0 if the database is more than this many hours old",
+        type=int,
+    )
+    parser.add_argument(
         "--check-not-revoked",
         help="Set exit code 0 if none of the supplied certificates are revoked",
         action="store_true",
@@ -116,7 +121,7 @@ def main():
     parser.add_argument(
         "--verbose", "-v", help="Be more verbose", action="count", default=0
     )
-    parser.add_argument(
+    group.add_argument(
         "--structured",
         help="Emit log entries intended for structured loggers",
         action="store_true",
@@ -190,6 +195,15 @@ def main():
 
     log.info(f"Status: {intermediates_db}, {crlite_db}")
 
+    if args.check_freshness:
+        freshness_limit = timedelta(hours=args.check_freshness)
+        if crlite_db.age() > freshness_limit:
+            log.error(
+                f"Database age is {crlite_db.age()}, which is larger than {freshness_limit}, "
+                + "aborting!"
+            )
+            sys.exit(1)
+
     query = CRLiteQuery(intermediates_db=intermediates_db, crlite_db=crlite_db)
 
     if not args.files and not args.hosts and not args.hosts_file:
@@ -229,9 +243,9 @@ def main():
                 failures.append(result)
 
     if failures:
-        print(f"{len(failures)} failures logged:")
+        log.error(f"{len(failures)} failures logged:")
         for result in failures:
-            print(result)
+            log.error(result)
         sys.exit(1)
 
 

@@ -113,7 +113,7 @@ def main():
         default=intermediates_collection_prod,
         help="URL to the CRLite records at Remote Settings.",
     )
-    group.add_argument(
+    parser.add_argument(
         "--download-intermediates",
         action="store_true",
         help="Download all intermediate PEM files to the database",
@@ -121,7 +121,7 @@ def main():
     parser.add_argument(
         "--verbose", "-v", help="Be more verbose", action="count", default=0
     )
-    group.add_argument(
+    parser.add_argument(
         "--structured",
         help="Emit log entries intended for structured loggers",
         action="store_true",

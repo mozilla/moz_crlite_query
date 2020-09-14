@@ -1,6 +1,7 @@
 import base64
 import collections
 import hashlib
+import json
 import logging
 import progressbar
 import re
@@ -480,17 +481,16 @@ class CRLiteQueryResult(object):
             "name": self.name,
             "issuer": self.issuer["subject"],
             "state": self.state,
-            "state_icon": self.result_icon(),
-            "enrolled_in_crlite": "✅" if self.issuer["crlite_enrolled"] else "❌",
-            "cert_id": self.cert_id,
+            "enrolled_in_crlite": self.issuer["crlite_enrolled"],
+            "cert_id": str(self.cert_id),
             "via_filter": self.via_filter,
             "via_stash": self.via_stash,
         }
 
         if self.state == "Revoked":
-            log.warning(logdata)
+            log.warning(json.dumps(logdata))
         else:
-            log.info(logdata)
+            log.info(json.dumps(logdata))
 
 
 class CRLiteQuery(object):

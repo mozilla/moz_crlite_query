@@ -16,9 +16,7 @@ from filtercascade import FilterCascade
 from moz_crlite_lib import CertId, IssuerId, readFromAdditionsList
 from pathlib import Path
 from pyasn1.codec.der.decoder import decode as der_decoder
-from pyasn1.type import namedtype
-from pyasn1.type import tag
-from pyasn1.type import univ
+from pyasn1.type import namedtype, tag, univ
 from pyasn1_modules import pem
 from pyasn1_modules import rfc2459
 from urllib.parse import urljoin
@@ -342,15 +340,6 @@ class CRLiteDB(object):
         return results
 
 
-# Theoretically this should get us the raw serial, but it... doesn't.
-# class RawSerial(univ.OctetString):
-#     tagSet = tag.initTagSet(
-#         tag.Tag(tag.tagClassUniversal, tag.tagFormatSimple, 0x02)
-#     )
-#     subtypeSpec = constraint.ConstraintsIntersection()
-#     typeId = univ.OctetString.getTypeId()
-
-
 class RawTBSCertificate(univ.Sequence):
     componentType = namedtype.NamedTypes(
         namedtype.DefaultedNamedType(
@@ -419,6 +408,21 @@ class CRLiteQueryResult(object):
             return
 
         rev_status = crlite_db.revocation_status(self.cert_id)
+
+        if not rev_status["revoked"] and self.cert_id.serial[0] & 0b10000000:
+            # Try again if the first byte of the serial might have had a leading
+            # zero stripped off by pyasn.1.
+            tmp_serial = self.cert_id.serial
+            serial_with_leading_zero = tmp_serial.rjust(1 + len(tmp_serial), b"\0")
+            cert_id_with_leading_zero = CertId(
+                issuer["issuerId"], serial_with_leading_zero
+            )
+            log.debug(
+                f"Received a not-revoked answer for serial {self.cert_id}, "
+                + "but there could be a missing leading zero, so retrying with "
+                + f"serial {cert_id_with_leading_zero}"
+            )
+            rev_status = crlite_db.revocation_status(cert_id_with_leading_zero)
 
         if rev_status["revoked"] is True:
             if "via_stash" in rev_status:
@@ -532,7 +536,10 @@ class CRLiteQuery(object):
                 "tbsCertificate"
             ).getComponentByName("serialNumber")
 
-            # Serial numbers are represented big-endian
+            # Serial numbers are represented big-endian.
+            # N.B.: Python strips leading zeroes, so we need to see whether
+            # there might have been one in the serial_bytes. See
+            # CRLiteQueryResult's init method for how that works.
             serial_bytes = int(serial_number).to_bytes(
                 (int(serial_number).bit_length() + 7) // 8,
                 byteorder="big",

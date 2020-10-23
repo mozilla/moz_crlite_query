@@ -4,6 +4,8 @@ This tool queries the published Mozilla CRLite database to determine certificate
 
 It maintains a local database in your `~/.crlitedb/` folder, which is updated when older than six hours.
 
+It works on a best-effort basis, and certificates with malformed serial numbers or other serious encoding issues might not be identified correctly, which would lead to false negatives. For a more bulletproof implementation of a CRLite decoder, you might want to consider building one atop [the rust-cascade](https://github.com/mozilla/rust-cascade) project, or simply rework the ASN.1 parsing here to reveal the exact values from the encoding without converting to intermediate Python types.
+
 Install from [PyPi](https://pypi.org/project/moz-crlite-query/):
 
 ```sh

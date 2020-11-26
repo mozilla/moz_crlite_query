@@ -132,9 +132,9 @@ def main():
     if args.crlite_staging:
         args.crlite_url = crlite_collection_stage
 
-    if args.verbose > 0:
+    if args.verbose > 1:
         logging.basicConfig(level=logging.DEBUG)
-        if args.verbose > 1:
+        if args.verbose > 2:
             from pyasn1 import debug
 
             debug.setLogger(debug.Debug("all"))
@@ -237,7 +237,7 @@ def main():
             if args.structured:
                 result.log_query_result()
             else:
-                result.print_query_result()
+                result.print_query_result(verbose=args.verbose)
 
             if args.check_not_revoked and result.is_revoked():
                 failures.append(result)

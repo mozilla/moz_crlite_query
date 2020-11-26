@@ -455,7 +455,7 @@ class CRLiteQueryResult(object):
             return "⁉️"
         return ""
 
-    def print_query_result(self):
+    def print_query_result(self, *, verbose=0):
         padded_name = self.name + " " * 5
         padding = "".ljust(len(padded_name))
 
@@ -466,7 +466,8 @@ class CRLiteQueryResult(object):
 
             print(f"{padded_name} Issuer: {self.issuer['subject']}")
             print(f"{padding} Enrolled in CRLite: {enrolled_icon}")
-            print(f"{padding} {self.cert_id}")
+            if verbose > 0:
+                print(f"{padding} {self.cert_id}")
             if self.via_filter:
                 print(f"{padding} Revoked via CRLite filter: {self.via_filter}")
             if self.via_stash:

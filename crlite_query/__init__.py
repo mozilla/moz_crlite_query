@@ -399,9 +399,9 @@ class CRLiteQueryResult(object):
             self.state = "Not Enrolled"
             return
 
-        if crlite_db.latest_covered_date() < not_before:
-            self.state = "Too New"
-            return
+        cert_newer_than_filter = False
+        if crlite_db.filter_date() < not_before:
+            cert_newer_than_filter = True
 
         if crlite_db.latest_covered_date() > not_after:
             self.state = "Expired"
@@ -427,12 +427,18 @@ class CRLiteQueryResult(object):
         if rev_status["revoked"] is True:
             if "via_stash" in rev_status:
                 self.via_stash = rev_status["via_stash"]
-            if "via_filter" in rev_status:
+                self.state = "Revoked"
+            elif cert_newer_than_filter:
+                self.state = "Too New"
+            elif "via_filter" in rev_status:
                 self.via_filter = rev_status["via_filter"]
-            self.state = "Revoked"
+                self.state = "Revoked"
             return
 
-        self.state = "Valid"
+        if cert_newer_than_filter:
+            self.state = "Too New"
+        else:
+            self.state = "Valid"
 
     def __str__(self):
         return f"{self.name} {self.cert_id} state={self.state}"

@@ -16,7 +16,7 @@ crlite_collection_prod = (
     + "/collections/cert-revocations/records"
 )
 crlite_collection_stage = (
-    "https://settings.stage.mozaws.net/v1/buckets/security-state"
+    "https://settings-cdn.stage.mozaws.net/v1/buckets/security-state"
     + "/collections/cert-revocations/records"
 )
 intermediates_collection_prod = (

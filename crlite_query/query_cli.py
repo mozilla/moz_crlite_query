@@ -11,17 +11,23 @@ from urllib.parse import urlparse
 log = logging.getLogger("query_cli")
 
 
-crlite_collection_prod = (
+remote_settings_prod = (
     "https://firefox.settings.services.mozilla.com/v1/buckets/security-state"
-    + "/collections/cert-revocations/records"
 )
-crlite_collection_stage = (
+remote_settings_stage = (
     "https://settings-cdn.stage.mozaws.net/v1/buckets/security-state"
-    + "/collections/cert-revocations/records"
 )
+
+crlite_collection_prod = remote_settings_prod + "/collections/cert-revocations/records"
 intermediates_collection_prod = (
-    "https://firefox.settings.services.mozilla.com/v1/buckets/security-state"
-    + "/collections/intermediates/records"
+    remote_settings_prod + "/collections/intermediates/records"
+)
+
+crlite_collection_stage = (
+    remote_settings_stage + "/collections/cert-revocations/records"
+)
+intermediates_collection_stage = (
+    remote_settings_stage + "/collections/intermediates/records"
 )
 
 
@@ -131,6 +137,7 @@ def main():
 
     if args.crlite_staging:
         args.crlite_url = crlite_collection_stage
+        args.intermediates_url = intermediates_collection_stage
 
     if args.verbose > 1:
         logging.basicConfig(level=logging.DEBUG)

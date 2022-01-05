@@ -15,11 +15,10 @@ from datetime import datetime, timezone
 from filtercascade import FilterCascade
 from moz_crlite_lib import CertId, IssuerId, readFromAdditionsList
 from pathlib import Path
-from pyasn1.codec.der.decoder import decode as der_decoder
-from pyasn1.type import namedtype, tag, univ
 from pyasn1_modules import pem
-from pyasn1_modules import rfc2459
 from urllib.parse import urljoin
+
+from cryptography import x509
 
 log = logging.getLogger("crlite_query")
 
@@ -75,7 +74,7 @@ def uint_to_serial_bytes(a):
     # Encode the non-negative integer |a| as a DER integer without the leading
     # tag and length prefix. The DER encoding of |a| is the shortest octet
     # string that encodes |a| in big endian two's complement form.
-    assert(a >= 0)
+    assert a >= 0
 
     # Since |a| is non-negative, the shortest bit string that encodes it in
     # big-endian two's complement form has a leading 0 bit. Positive python
@@ -180,16 +179,20 @@ class IntermediatesDB(object):
             cur.execute(
                 "SELECT id, subject, pubKeyHash, crlite_enrolled FROM intermediates "
                 + "WHERE subjectDN=:dn LIMIT 1;",
-                {"dn": base64.b64encode(bytes(distinguishedName)).decode("utf-8")},
+                {
+                    "dn": base64.urlsafe_b64encode(bytes(distinguishedName)).decode(
+                        "utf-8"
+                    )
+                },
             )
             row = cur.fetchone()
             if not row:
                 return None
             data = {
                 "subject": row["subject"],
-                "spki_hash_bytes": base64.b64decode(row["pubKeyHash"]),
+                "spki_hash_bytes": base64.urlsafe_b64decode(row["pubKeyHash"]),
                 "crlite_enrolled": row["crlite_enrolled"] == 1,
-                "issuerId": IssuerId(base64.b64decode(row["pubKeyHash"])),
+                "issuerId": IssuerId(base64.urlsafe_b64decode(row["pubKeyHash"])),
             }
             pem_path = Path(self.intermediates_path) / Path(row["id"])
             if pem_path.is_file():
@@ -202,9 +205,11 @@ class CRLiteDB(object):
     def __init__(self, *, db_path):
         self.db_path = Path(db_path).expanduser()
         self.filter_file = None
+        self.coverage_file = None
         self.stash_files = list()
         self.issuer_to_revocations = collections.defaultdict(list)
         self.filtercascade = None
+        self.coverage = None
 
         if self.db_path.is_dir():
             self.__load()
@@ -220,8 +225,7 @@ class CRLiteDB(object):
         return (
             f"Current filter: {self.filter_file.stem} with {self.filtercascade.layerCount()} "
             + f"layers and {self.filtercascade.bitCount()} bit-count, {len(self.stash_files)} "
-            + f"stash files with {count_revocations} stashed revocations, up-to-date as of "
-            + f"{self.latest_covered_date()} ({self.age()} ago)."
+            + f"stash files with {count_revocations} stashed revocations. Age {self.age()}."
         )
 
     def filter_date(self):
@@ -248,19 +252,23 @@ class CRLiteDB(object):
             )
             return datetime.now(tz=timezone.utc)
 
-    def latest_covered_date(self):
-        if self.stash_files:
-            return self.latest_stash_date()
-        return self.filter_date()
-
     def age(self):
-        return datetime.now(tz=timezone.utc) - self.latest_covered_date()
+        last_update = (
+            self.latest_stash_date() or self.filter_date() or datetime.datetime.min
+        )
+        return datetime.now(tz=timezone.utc) - last_update
 
-    def load_filter(self, *, path):
-        self.filter_file = path
+    def load_filter(self, *, filter_path, coverage_path):
+        self.filter_file = filter_path
+        self.coverage_file = coverage_path
         self.filtercascade = FilterCascade.from_buf(self.filter_file.read_bytes())
         self.issuer_to_revocations = collections.defaultdict(list)
         self.stash_files = list()
+        self.coverage = {}
+        with open(coverage_path, "r") as f:
+            for ct_log in json.load(f):
+                log_id = base64.b64decode(ct_log["logID"])
+                self.coverage[log_id] = (ct_log["minTimestamp"], ct_log["maxTimestamp"])
 
     def load_stashes(self, *, stashes):
         filter_date_str = self.filter_file.stem
@@ -280,7 +288,11 @@ class CRLiteDB(object):
         if not filters:
             return
 
-        self.load_filter(path=filters.pop())
+        coverage = sorted(self.db_path.glob("*-coverage"))
+        if not coverage:
+            return
+
+        self.load_filter(filter_path=filters.pop(), coverage_path=coverage.pop())
         self.load_stashes(stashes=self.db_path.glob("*-diff"))
 
     def cleanup(self):
@@ -325,6 +337,11 @@ class CRLiteDB(object):
                 self.stash_files.append(local_path)
             else:
                 self.filter_file = local_path
+                coverage_path = self.db_path / (
+                    entry["details"]["name"].rstrip("full") + "coverage"
+                )
+                with open(coverage_path, "w") as f:
+                    json.dump(entry["coverage"], f)
 
         self.__load()
 
@@ -333,8 +350,16 @@ class CRLiteDB(object):
         ensure_local(base_url=base_url, local_path=local_path, entry=entry)
         return local_path
 
-    def validity_window_status(self, issue_time, expire_time):
-        return "Too New"
+    def covers(self, timestamps):
+        if not timestamps:
+            return False
+        for log_id, timestamp in timestamps.items():
+            if log_id not in self.coverage:
+                continue
+            minT, maxT = self.coverage[log_id]
+            if minT <= timestamp and timestamp <= maxT:
+                return True
+        return False
 
     def revocation_status(self, certId):
         results = {}
@@ -359,54 +384,12 @@ class CRLiteDB(object):
         return results
 
 
-class RawTBSCertificate(univ.Sequence):
-    componentType = namedtype.NamedTypes(
-        namedtype.DefaultedNamedType(
-            "version",
-            rfc2459.Version("v1").subtype(
-                explicitTag=tag.Tag(tag.tagClassContext, tag.tagFormatSimple, 0)
-            ),
-        ),
-        namedtype.NamedType("serialNumber", univ.Integer()),
-        namedtype.NamedType("signature", rfc2459.AlgorithmIdentifier()),
-        namedtype.NamedType("issuer", univ.Any()),
-        namedtype.NamedType("validity", rfc2459.Validity()),
-        namedtype.NamedType("subject", rfc2459.Name()),
-        namedtype.NamedType("subjectPublicKeyInfo", rfc2459.SubjectPublicKeyInfo()),
-        namedtype.OptionalNamedType(
-            "issuerUniqueID",
-            rfc2459.UniqueIdentifier().subtype(
-                implicitTag=tag.Tag(tag.tagClassContext, tag.tagFormatSimple, 1)
-            ),
-        ),
-        namedtype.OptionalNamedType(
-            "subjectUniqueID",
-            rfc2459.UniqueIdentifier().subtype(
-                implicitTag=tag.Tag(tag.tagClassContext, tag.tagFormatSimple, 2)
-            ),
-        ),
-        namedtype.OptionalNamedType(
-            "extensions",
-            rfc2459.Extensions().subtype(
-                explicitTag=tag.Tag(tag.tagClassContext, tag.tagFormatSimple, 3)
-            ),
-        ),
-    )
-
-
-class RawCertificate(univ.Sequence):
-    componentType = namedtype.NamedTypes(
-        namedtype.NamedType("tbsCertificate", RawTBSCertificate()),
-        namedtype.NamedType("signatureAlgorithm", rfc2459.AlgorithmIdentifier()),
-        namedtype.NamedType("signatureValue", univ.BitString()),
-    )
-
-
 class CRLiteQueryResult(object):
-    def __init__(self, *, name, issuer, cert_id, crlite_db, not_before, not_after):
+    def __init__(self, *, name, issuer, cert_id, crlite_db, timestamps):
         self.name = name
         self.issuer = issuer
         self.cert_id = cert_id
+        self.timestamps = timestamps
         self.via_stash = None
         self.via_filter = None
 
@@ -418,52 +401,21 @@ class CRLiteQueryResult(object):
             self.state = "Not Enrolled"
             return
 
-        cert_newer_than_filter = False
-        if crlite_db.filter_date() < not_before:
-            cert_newer_than_filter = True
-
-        if crlite_db.latest_covered_date() > not_after:
-            self.state = "Expired"
+        if not crlite_db.covers(timestamps):
+            self.state = "Not Covered"
             return
 
         rev_status = crlite_db.revocation_status(self.cert_id)
 
-        if rev_status["revoked"] is True:
-            if "via_stash" in rev_status:
-                self.via_stash = rev_status["via_stash"]
-                self.state = "Revoked"
-            elif cert_newer_than_filter:
-                self.state = "Too New"
-            elif "via_filter" in rev_status:
-                self.via_filter = rev_status["via_filter"]
-                self.state = "Revoked"
-            return
-
-        if cert_newer_than_filter:
-            self.state = "Too New"
-        else:
-            self.state = "Valid"
+        self.state = "Revoked" if rev_status["revoked"] else "Valid"
+        self.via_stash = rev_status.get("via_stash")
+        self.via_filter = rev_status.get("via_filter")
 
     def __str__(self):
         return f"{self.name} {self.cert_id} state={self.state}"
 
     def is_revoked(self):
         return self.state == "Revoked"
-
-    def result_icon(self):
-        if self.state == "Revoked":
-            return "⛔️"
-        if self.state == "Not Enrolled":
-            return "❔"
-        if self.state == "Valid":
-            return "👍"
-        if self.state == "Too New":
-            return "🐇"
-        if self.state == "Expired":
-            return "⏰"
-        if self.state == "Unknown Issuer":
-            return "⁉️"
-        return ""
 
     def print_query_result(self, *, verbose=0):
         padded_name = self.name + " " * 5
@@ -472,10 +424,10 @@ class CRLiteQueryResult(object):
         if not self.issuer:
             self.state = "Unknown Issuer"
         else:
-            enrolled_icon = "✅" if self.issuer["crlite_enrolled"] else "❌"
+            enrolled_str = "yes" if self.issuer["crlite_enrolled"] else "no"
 
             print(f"{padded_name} Issuer: {self.issuer['subject']}")
-            print(f"{padding} Enrolled in CRLite: {enrolled_icon}")
+            print(f"{padding} Enrolled in CRLite: {enrolled_str}")
             if verbose > 0:
                 print(f"{padding} {self.cert_id}")
             if self.via_filter:
@@ -483,9 +435,7 @@ class CRLiteQueryResult(object):
             if self.via_stash:
                 print(f"{padding} Revoked via Stash: {self.via_stash}")
 
-        print(
-            f"{padding} Result: {self.result_icon()} {self.state} {self.result_icon()}"
-        )
+        print(f"{padding} Result: {self.state}")
 
     def log_query_result(self):
         if not self.issuer:
@@ -540,18 +490,12 @@ class CRLiteQuery(object):
 
     def query(self, *, name, generator):
         for data in generator:
-            cert, rest = der_decoder(data, asn1Spec=RawCertificate())
-            assert not rest, f"unexpected leftovers in ASN.1 decoding: {rest}"
-
-            serial_number = cert.getComponentByName(
-                "tbsCertificate"
-            ).getComponentByName("serialNumber")
+            cert = x509.load_der_x509_certificate(data)
+            serial_number = cert.serial_number
 
             serial_bytes = uint_to_serial_bytes(int(serial_number))
 
-            issuerDN = cert.getComponentByName("tbsCertificate").getComponentByName(
-                "issuer"
-            )
+            issuerDN = cert.issuer.public_bytes()
             issuer = self.intermediates_db.issuer_by_DN(issuerDN)
             if not issuer:
                 yield CRLiteQueryResult(
@@ -559,30 +503,33 @@ class CRLiteQuery(object):
                     issuer=None,
                     cert_id=None,
                     crlite_db=self.crlite_db,
-                    not_before=None,
-                    not_after=None,
+                    timestamps=None,
                 )
                 continue
 
             cert_id = CertId(issuer["issuerId"], serial_bytes)
 
-            validity = cert.getComponentByName("tbsCertificate").getComponentByName(
-                "validity"
-            )
-            not_before = validity.getComponentByName("notBefore").getComponent()
-            not_before = datetime.strptime(str(not_before), "%y%m%d%H%M%SZ").replace(
-                tzinfo=timezone.utc
-            )
-            not_after = validity.getComponentByName("notAfter").getComponent()
-            not_after = datetime.strptime(str(not_after), "%y%m%d%H%M%SZ").replace(
-                tzinfo=timezone.utc
-            )
+            timestamps = {}
+            try:
+                scts = cert.extensions.get_extension_for_class(
+                    x509.PrecertificateSignedCertificateTimestamps
+                ).value
+            except x509.ExtensionNotFound:
+                pass
+            else:
+                for sct in scts:
+                    # sct.timestamp is a python datetime.datetime with
+                    # millisecond precision and the timezone set to UTC. We
+                    # want milliseconds since epoch. Since timestamps are
+                    # "small", the float |sct.timestamp.timestamp() * 1000|
+                    # will be exactly representable and truncating with int()
+                    # will give the correct result.
+                    timestamps[sct.log_id] = int(sct.timestamp.timestamp() * 1000)
 
             yield CRLiteQueryResult(
                 name=name,
                 issuer=issuer,
                 cert_id=cert_id,
                 crlite_db=self.crlite_db,
-                not_before=not_before,
-                not_after=not_after,
+                timestamps=timestamps,
             )

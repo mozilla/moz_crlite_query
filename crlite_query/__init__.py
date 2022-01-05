@@ -15,11 +15,10 @@ from datetime import datetime, timezone
 from filtercascade import FilterCascade
 from moz_crlite_lib import CertId, IssuerId, readFromAdditionsList
 from pathlib import Path
-from pyasn1.codec.der.decoder import decode as der_decoder
-from pyasn1.type import namedtype, tag, univ
 from pyasn1_modules import pem
-from pyasn1_modules import rfc2459
 from urllib.parse import urljoin
+
+from cryptography import x509
 
 log = logging.getLogger("crlite_query")
 
@@ -359,49 +358,6 @@ class CRLiteDB(object):
         return results
 
 
-class RawTBSCertificate(univ.Sequence):
-    componentType = namedtype.NamedTypes(
-        namedtype.DefaultedNamedType(
-            "version",
-            rfc2459.Version("v1").subtype(
-                explicitTag=tag.Tag(tag.tagClassContext, tag.tagFormatSimple, 0)
-            ),
-        ),
-        namedtype.NamedType("serialNumber", univ.Integer()),
-        namedtype.NamedType("signature", rfc2459.AlgorithmIdentifier()),
-        namedtype.NamedType("issuer", univ.Any()),
-        namedtype.NamedType("validity", rfc2459.Validity()),
-        namedtype.NamedType("subject", rfc2459.Name()),
-        namedtype.NamedType("subjectPublicKeyInfo", rfc2459.SubjectPublicKeyInfo()),
-        namedtype.OptionalNamedType(
-            "issuerUniqueID",
-            rfc2459.UniqueIdentifier().subtype(
-                implicitTag=tag.Tag(tag.tagClassContext, tag.tagFormatSimple, 1)
-            ),
-        ),
-        namedtype.OptionalNamedType(
-            "subjectUniqueID",
-            rfc2459.UniqueIdentifier().subtype(
-                implicitTag=tag.Tag(tag.tagClassContext, tag.tagFormatSimple, 2)
-            ),
-        ),
-        namedtype.OptionalNamedType(
-            "extensions",
-            rfc2459.Extensions().subtype(
-                explicitTag=tag.Tag(tag.tagClassContext, tag.tagFormatSimple, 3)
-            ),
-        ),
-    )
-
-
-class RawCertificate(univ.Sequence):
-    componentType = namedtype.NamedTypes(
-        namedtype.NamedType("tbsCertificate", RawTBSCertificate()),
-        namedtype.NamedType("signatureAlgorithm", rfc2459.AlgorithmIdentifier()),
-        namedtype.NamedType("signatureValue", univ.BitString()),
-    )
-
-
 class CRLiteQueryResult(object):
     def __init__(self, *, name, issuer, cert_id, crlite_db, not_before, not_after):
         self.name = name
@@ -540,18 +496,12 @@ class CRLiteQuery(object):
 
     def query(self, *, name, generator):
         for data in generator:
-            cert, rest = der_decoder(data, asn1Spec=RawCertificate())
-            assert not rest, f"unexpected leftovers in ASN.1 decoding: {rest}"
-
-            serial_number = cert.getComponentByName(
-                "tbsCertificate"
-            ).getComponentByName("serialNumber")
+            cert = x509.load_der_x509_certificate(data)
+            serial_number = cert.serial_number
 
             serial_bytes = uint_to_serial_bytes(int(serial_number))
 
-            issuerDN = cert.getComponentByName("tbsCertificate").getComponentByName(
-                "issuer"
-            )
+            issuerDN = cert.issuer.public_bytes()
             issuer = self.intermediates_db.issuer_by_DN(issuerDN)
             if not issuer:
                 yield CRLiteQueryResult(

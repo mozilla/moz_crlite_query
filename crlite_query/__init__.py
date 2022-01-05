@@ -74,7 +74,7 @@ def uint_to_serial_bytes(a):
     # Encode the non-negative integer |a| as a DER integer without the leading
     # tag and length prefix. The DER encoding of |a| is the shortest octet
     # string that encodes |a| in big endian two's complement form.
-    assert(a >= 0)
+    assert a >= 0
 
     # Since |a| is non-negative, the shortest bit string that encodes it in
     # big-endian two's complement form has a leading 0 bit. Positive python
@@ -179,7 +179,11 @@ class IntermediatesDB(object):
             cur.execute(
                 "SELECT id, subject, pubKeyHash, crlite_enrolled FROM intermediates "
                 + "WHERE subjectDN=:dn LIMIT 1;",
-                {"dn": base64.urlsafe_b64encode(bytes(distinguishedName)).decode("utf-8")},
+                {
+                    "dn": base64.urlsafe_b64encode(bytes(distinguishedName)).decode(
+                        "utf-8"
+                    )
+                },
             )
             row = cur.fetchone()
             if not row:
@@ -249,7 +253,9 @@ class CRLiteDB(object):
             return datetime.now(tz=timezone.utc)
 
     def age(self):
-        last_update = self.latest_stash_date() or self.filter_date() or datetime.datetime.min
+        last_update = (
+            self.latest_stash_date() or self.filter_date() or datetime.datetime.min
+        )
         return datetime.now(tz=timezone.utc) - last_update
 
     def load_filter(self, *, filter_path, coverage_path):
@@ -331,7 +337,9 @@ class CRLiteDB(object):
                 self.stash_files.append(local_path)
             else:
                 self.filter_file = local_path
-                coverage_path = self.db_path / (entry["details"]["name"].rstrip("full") + "coverage")
+                coverage_path = self.db_path / (
+                    entry["details"]["name"].rstrip("full") + "coverage"
+                )
                 with open(coverage_path, "w") as f:
                     json.dump(entry["coverage"], f)
 
@@ -427,9 +435,7 @@ class CRLiteQueryResult(object):
             if self.via_stash:
                 print(f"{padding} Revoked via Stash: {self.via_stash}")
 
-        print(
-            f"{padding} Result: {self.state}"
-        )
+        print(f"{padding} Result: {self.state}")
 
     def log_query_result(self):
         if not self.issuer:
@@ -505,7 +511,9 @@ class CRLiteQuery(object):
 
             timestamps = {}
             try:
-                scts = cert.extensions.get_extension_for_class(x509.PrecertificateSignedCertificateTimestamps).value
+                scts = cert.extensions.get_extension_for_class(
+                    x509.PrecertificateSignedCertificateTimestamps
+                ).value
             except x509.ExtensionNotFound:
                 pass
             else:

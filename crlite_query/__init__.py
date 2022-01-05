@@ -342,9 +342,6 @@ class CRLiteDB(object):
         ensure_local(base_url=base_url, local_path=local_path, entry=entry)
         return local_path
 
-    def validity_window_status(self, issue_time, expire_time):
-        return "Too New"
-
     def covers(self, timestamps):
         if not timestamps:
             return False

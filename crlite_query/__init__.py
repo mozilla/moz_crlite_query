@@ -412,21 +412,6 @@ class CRLiteQueryResult(object):
     def is_revoked(self):
         return self.state == "Revoked"
 
-    def result_icon(self):
-        if self.state == "Revoked":
-            return "⛔️"
-        if self.state == "Not Enrolled":
-            return "❔"
-        if self.state == "Valid":
-            return "👍"
-        if self.state == "Too New":
-            return "🐇"
-        if self.state == "Expired":
-            return "⏰"
-        if self.state == "Unknown Issuer":
-            return "⁉️"
-        return ""
-
     def print_query_result(self, *, verbose=0):
         padded_name = self.name + " " * 5
         padding = "".ljust(len(padded_name))
@@ -434,10 +419,10 @@ class CRLiteQueryResult(object):
         if not self.issuer:
             self.state = "Unknown Issuer"
         else:
-            enrolled_icon = "✅" if self.issuer["crlite_enrolled"] else "❌"
+            enrolled_str = "yes" if self.issuer["crlite_enrolled"] else "no"
 
             print(f"{padded_name} Issuer: {self.issuer['subject']}")
-            print(f"{padding} Enrolled in CRLite: {enrolled_icon}")
+            print(f"{padding} Enrolled in CRLite: {enrolled_str}")
             if verbose > 0:
                 print(f"{padding} {self.cert_id}")
             if self.via_filter:
@@ -446,7 +431,7 @@ class CRLiteQueryResult(object):
                 print(f"{padding} Revoked via Stash: {self.via_stash}")
 
         print(
-            f"{padding} Result: {self.result_icon()} {self.state} {self.result_icon()}"
+            f"{padding} Result: {self.state}"
         )
 
     def log_query_result(self):

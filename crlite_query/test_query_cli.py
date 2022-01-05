@@ -78,23 +78,51 @@ class MockCRLiteDataRequestHandler(MockCollectionRequestHandler):
             [
                 {
                     "path": Path(__file__).resolve().parent / Path("test-1.filter"),
-                    "hash": "80e8e148fbf95aed39783f1fcc2d4576074f8c487656ca2d53571da4b17e20a9",
+                    "hash": "29bdc4ccfe77dcdc83067d33d884bca8ce9418a358a5837aa30eb81f4455e2f5",
                     "content-type": "application/octet-stream",
                     "extra": {
-                        "details": {"name": "2020-04-02T06:00:00Z-full"},
+                        "details": {"name": "2022-01-03T18:08:48+00:00Z-full"},
                         "incremental": False,
-                        "effectiveTimestamp": 1585807200000,
+                        "effectiveTimestamp": 1641233328000,
+                        "id": "d461ffaa-337a-4e82-8608-2b8a34b9f476",
+                        "coverage": [
+                            {
+                                "logID": "ejKMVNi3LbYg6jjgUh7phBZwMhOFTTvSK8E6V6NS61I=",
+                                "maxTimestamp": 1641229825819,
+                                "minTimestamp": 1530194976600,
+                            },
+                            {
+                                "logID": "KTxRllTIOWW6qlD8WAfUt2+/WHopctykwwz05UVH9Hg=",
+                                "maxTimestamp": 1639518268919,
+                                "minTimestamp": 1560299813384,
+                            },
+                            {
+                                "logID": "QcjKsd8iRkoQxqE6CUKHXk4xixsD6+tLx2jwkGKWBvY=",
+                                "maxTimestamp": 1641228904427,
+                                "minTimestamp": 1530163848283,
+                            },
+                            {
+                                "logID": "9lyUL9F3MCIUVBgIMJRWjuNNExkzv98MLyALzE7xZOM=",
+                                "maxTimestamp": 1641030593683,
+                                "minTimestamp": 1630323561351,
+                            },
+                            {
+                                "logID": "XNxDkv7mq0VEsV6a1FbmEDf71fpH3KFzlLJe5vbHDso=",
+                                "maxTimestamp": 1640994848041,
+                                "minTimestamp": 1513345434092,
+                            },
+                        ],
                     },
                 },
                 {
                     "path": Path(__file__).resolve().parent / Path("test-1.stash"),
-                    "hash": "bda63519578e451eeef9c828a003ee249c56b4cb97bdf2909e7563851d2bd985",
+                    "hash": "fd3c4bbde807233854671be482ed8d9ede40b6d1c6af3a0a4cfe37b26560dbc3",
                     "content-type": "application/octet-stream",
                     "extra": {
-                        "details": {"name": "2020-04-02T12:00:00Z-diff"},
+                        "details": {"name": "2022-01-04T00:08:27+00:00Z-diff"},
                         "incremental": True,
-                        "effectiveTimestamp": 1585828800000,
-                        "parent": "80e8e148fbf95aed39783f1fcc2d4576074f8c487656ca2d53571da4b17e20a9",
+                        "effectiveTimestamp": 1641254907000,
+                        "parent": "d461ffaa-337a-4e82-8608-2b8a34b9f476",
                     },
                 },
             ]
@@ -136,7 +164,6 @@ class TestCRLiteDB(unittest.TestCase):
 
             self.assertEqual(db.filter_file, None)
             self.assertEqual(db.stash_files, [])
-            self.assertEqual(db.latest_covered_date(), None)
 
             with MockServer(MockCRLiteDataRequestHandler) as base_uri:
                 db.update(
@@ -146,10 +173,6 @@ class TestCRLiteDB(unittest.TestCase):
 
             self.assertNotEqual(db.filter_file, None)
             self.assertEqual(len(db.stash_files), 1)
-            self.assertEqual(
-                db.latest_covered_date(),
-                datetime(2020, 4, 2, 12, 0, tzinfo=timezone.utc),
-            )
 
     def test_load_explicit_filter(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -157,16 +180,13 @@ class TestCRLiteDB(unittest.TestCase):
 
             self.assertEqual(db.filter_file, None)
             self.assertEqual(db.stash_files, [])
-            self.assertEqual(db.latest_covered_date(), None)
+            base_path = Path(__file__).resolve().parent
 
-            db.load_filter(path=Path(__file__).resolve().parent / Path("test-1.filter"))
+            db.load_filter(
+                filter_path=base_path / "test-1.filter",
+                coverage_path=base_path / "test-1.coverage",
+            )
             self.assertEqual(db.stash_files, [])
-
-            # Since the filter's name doesn't include the datestamp, expect
-            # a warning.
-            with self.assertLogs(level="WARNING") as log:
-                self.assertNotEqual(db.latest_covered_date(), None)
-                self.assertIn("Invalid isoformat string", log.output[0])
 
 
 class TestIntermediatesDB(unittest.TestCase):

@@ -71,6 +71,25 @@ def parse_hosts_file(fd):
     return host_strings
 
 
+def uint_to_serial_bytes(a):
+    # Encode the non-negative integer |a| as a DER integer without the leading
+    # tag and length prefix. The DER encoding of |a| is the shortest octet
+    # string that encodes |a| in big endian two's complement form.
+    assert(a >= 0)
+
+    # Since |a| is non-negative, the shortest bit string that encodes it in
+    # big-endian two's complement form has a leading 0 bit. Positive python
+    # integers have a `bit_length` method that gives the index of the leading 1
+    # bit. The minimal two's complement bit length is one more than this.
+    #
+    # NB: Python defines |int(0).bit_length() == 0|. The other cases are more
+    # intuitive; for positive integers k and x with 2**k > x we have
+    # |int(2**k + x).bit_length() == k+1|.
+    bit_len = 1 + a.bit_length()
+    byte_len = (bit_len + 7) // 8
+    return a.to_bytes(byte_len, byteorder="big", signed=False)
+
+
 class IntermediatesDB(object):
     def __init__(self, *, db_path, download_pems=False):
         self.db_path = Path(db_path).expanduser()
@@ -409,21 +428,6 @@ class CRLiteQueryResult(object):
 
         rev_status = crlite_db.revocation_status(self.cert_id)
 
-        if not rev_status["revoked"] and self.cert_id.serial[0] & 0b10000000:
-            # Try again if the first byte of the serial might have had a leading
-            # zero stripped off by pyasn.1.
-            tmp_serial = self.cert_id.serial
-            serial_with_leading_zero = tmp_serial.rjust(1 + len(tmp_serial), b"\0")
-            cert_id_with_leading_zero = CertId(
-                issuer["issuerId"], serial_with_leading_zero
-            )
-            log.debug(
-                f"Received a not-revoked answer for serial {self.cert_id}, "
-                + "but there could be a missing leading zero, so retrying with "
-                + f"serial {cert_id_with_leading_zero}"
-            )
-            rev_status = crlite_db.revocation_status(cert_id_with_leading_zero)
-
         if rev_status["revoked"] is True:
             if "via_stash" in rev_status:
                 self.via_stash = rev_status["via_stash"]
@@ -543,15 +547,7 @@ class CRLiteQuery(object):
                 "tbsCertificate"
             ).getComponentByName("serialNumber")
 
-            # Serial numbers are represented big-endian.
-            # N.B.: Python strips leading zeroes, so we need to see whether
-            # there might have been one in the serial_bytes. See
-            # CRLiteQueryResult's init method for how that works.
-            serial_bytes = int(serial_number).to_bytes(
-                (int(serial_number).bit_length() + 7) // 8,
-                byteorder="big",
-                signed=False,
-            )
+            serial_bytes = uint_to_serial_bytes(int(serial_number))
 
             issuerDN = cert.getComponentByName("tbsCertificate").getComponentByName(
                 "issuer"

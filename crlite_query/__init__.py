@@ -179,16 +179,16 @@ class IntermediatesDB(object):
             cur.execute(
                 "SELECT id, subject, pubKeyHash, crlite_enrolled FROM intermediates "
                 + "WHERE subjectDN=:dn LIMIT 1;",
-                {"dn": base64.b64encode(bytes(distinguishedName)).decode("utf-8")},
+                {"dn": base64.urlsafe_b64encode(bytes(distinguishedName)).decode("utf-8")},
             )
             row = cur.fetchone()
             if not row:
                 return None
             data = {
                 "subject": row["subject"],
-                "spki_hash_bytes": base64.b64decode(row["pubKeyHash"]),
+                "spki_hash_bytes": base64.urlsafe_b64decode(row["pubKeyHash"]),
                 "crlite_enrolled": row["crlite_enrolled"] == 1,
-                "issuerId": IssuerId(base64.b64decode(row["pubKeyHash"])),
+                "issuerId": IssuerId(base64.urlsafe_b64decode(row["pubKeyHash"])),
             }
             pem_path = Path(self.intermediates_path) / Path(row["id"])
             if pem_path.is_file():

@@ -22,9 +22,9 @@ from cryptography import x509
 
 log = logging.getLogger("crlite_query")
 
-assert sqlite3.sqlite_version_info >= (3, 24), "Requires SQLite 3.24 or newer"
 assert sys.version_info >= (3, 7), "Requires Python 3.7 or newer"
-
+if not sqlite3.sqlite_version_info >= (3, 24):
+    log.warning("Requires SQLite 3.24 or newer")
 
 def ensure_local(*, base_url, entry, local_path):
     url = urljoin(base_url, entry["attachment"]["location"])

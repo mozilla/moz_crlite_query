@@ -15,7 +15,7 @@ remote_settings_prod = (
     "https://firefox.settings.services.mozilla.com/v1/buckets/security-state"
 )
 remote_settings_stage = (
-    "https://settings-cdn.stage.mozaws.net/v1/buckets/security-state"
+    "https://firefox.settings.services.allizom.org/v1/buckets/security-state"
 )
 
 crlite_collection_prod = remote_settings_prod + "/collections/cert-revocations/records"
